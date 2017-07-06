@@ -48,6 +48,7 @@ func (c *Controller) Consume(w http.ResponseWriter, r *http.Request){
     if err==nil{
         m.Reference.Scan(ref.ID)
     }
+    fmt.Fprintf(w, "新用户创建")
     if m.AddNewMember(App.DB, phone, cardno, ""){
       fmt.Fprintf(w, "新用户创建失败")
       //return;
@@ -57,7 +58,7 @@ func (c *Controller) Consume(w http.ResponseWriter, r *http.Request){
     return;
   }else//老用户
   {//found, add consume amount
-
+    fmt.Println("old:",m.ID)
   }
 
   fmt.Fprintf(w ,strconv.Itoa(code),m.String()) //这个写入到w的是输出到客户端的

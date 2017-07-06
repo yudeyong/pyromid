@@ -5,18 +5,19 @@ import (
 	"fmt"
 	"time"
   "regexp"
+	"strconv"
 	gorm "gopkg.in/jinzhu/gorm.v1"
 
 	"github.com/twinj/uuid"
 )
 
 type Member struct {
-	ID                      string  				`gorm:"column:id"`
-	CardNo                  sql.NullString	`gorm:"column:cardno"`
-	Phone                   sql.NullString  `gorm:"column:phone"`
-  Level                   sql.NullString  `gorm:"column:level"`
-	CreateTime              time.Time 			`gorm:"column:createtime"`
-	Reference								sql.NullString  `gorm:"column:reference_id"`
+	ID                  string  				`gorm:"column:id"`
+	CardNo              sql.NullString	`gorm:"column:cardno"`
+	Phone               sql.NullString  `gorm:"column:phone"`
+  Level               sql.NullString  `gorm:"column:level"`
+	CreateTime          time.Time 			`gorm:"column:createtime"`
+	Reference						sql.NullString  `gorm:"column:reference_id"`
 }
 const (
     regular = "^(13[0-9]|14[57]|15[0-35-9]|18[07-9])\\d{8}$"
@@ -86,7 +87,7 @@ func (m *Member) String() string{
 	p,_ := m.Phone.Value()
 	c,_ := m.CardNo.Value()
 	r,_ := m.Reference.Value()
-  return fmt.Sprintf("id=%s,p=%s,c=%s,ref=%s",m.ID,p,c,r)
+  return fmt.Sprintf("id=%s,p=%s,c=%s,ref=%s,time=%s",m.ID,p,c,r,m.CreateTime)
 }
 
 //reference 满足 phone No.按phone算, 否则按卡号查询
@@ -112,14 +113,18 @@ func (m *Member)AddNewMember(db *gorm.DB, phone string, cardno string, level str
 func (m *Member)FillNewMember(phone string, cardno string, level string) (error, *Member){
 	m.ID = uuid.NewV4().String()
 	m.Phone.Scan(phone)
+	if (len(cardno)!=0){
+		no, err := strconv.Atoi(cardno)
+		if (err==nil){
+			UpdateNewCard(no)
+		}
+	}else{
+		cardno = GetNewCard()
+	}
 	m.CardNo.Scan( cardno )
 	if len(level)!=0 {
 		m.Level.String,m.Level.Valid = level,true
 	}
 	m.CreateTime = time.Now()
 	return nil,m
-}
-
-func (o *Member) Save(db *gorm.DB) error {
-	return db.Save(o).Error
 }

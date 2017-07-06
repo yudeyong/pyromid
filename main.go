@@ -16,6 +16,7 @@ import (
 	_ "github.com/lib/pq"
 	"./app"
 	"./conf"
+	"./model"
 )
 
 
@@ -40,6 +41,7 @@ func initApp() error {
 	//fmt.Printf("found: %s\n", App)
 
 	conf.InitLevels(App.DB)
+	model.InitCardNo(App.DB)
 	return nil
 }
 
@@ -86,7 +88,7 @@ func main() {
 		ReadTimeout:  15 * time.Second,
 	}
 	srv.ListenAndServe();
-	
+
 	defer func() {
 		App.DB.Close()
 	}()
