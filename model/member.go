@@ -48,7 +48,7 @@ func (m *Member) FindByPhoneOrCardno(db *gorm.DB, phone string, cardno string) (
   if len(phone)==0 && len(cardno)==0 {
     return errors.New( "请输入手机号或卡号"), ResInvalid
   }
-  if len(phone)==0 {
+  if len(phone)!=0 {
     err, code := m.FindByPhone(db, phone)
     if (err!=nil){
       return err, code
@@ -63,6 +63,7 @@ func (m *Member) FindByPhone(db *gorm.DB, phone string) (error, int){
     return errors.New("无效电话号码"), ResPhoneInvalid
   }
   db1 := db.First(&m,"phone=?", phone)
+	//fmt.Println("FindByPhone",phone, db1.Error)
 	if db1.RecordNotFound() {
 		return sql.ErrNoRows, ResNotFound
 	}
@@ -95,8 +96,9 @@ func (m *Member) FindByInfo(db *gorm.DB, reference string) (error, int){
   if len(reference)==0 {
     return errors.New( "无引荐人卡号,或手机号"), ResInvalid
   }
-  if !ValidatePhone(reference){
+  if ValidatePhone(reference){
     err, code := m.FindByPhone(db, reference)
+		fmt.Println("ref:",reference, err, code)
     if (err!=nil){
       return err, code
     }
@@ -105,12 +107,17 @@ func (m *Member) FindByInfo(db *gorm.DB, reference string) (error, int){
   return m.FindByCardno(db, reference)
 
 }
-func (m *Member)AddNewMember(db *gorm.DB, phone string, cardno string, level string) (bool){
-	m.FillNewMember(phone, cardno, level)
+func (m *Member)AddNewMember(db *gorm.DB, phone string, cardno string, reference string, level string) (error){
+	m.FillNewMember(phone, cardno, reference, level)
 	db.Create(m)
-	return db.NewRecord(m)
+	if db.NewRecord(m){
+		return errors.New("用户创建失败")
+	}else{
+		u := &user_level{}
+		return u.CreateLevels(db, m)
+	}
 }
-func (m *Member)FillNewMember(phone string, cardno string, level string) (error, *Member){
+func (m *Member)FillNewMember(phone string, cardno string, reference string, level string) (error, *Member){
 	m.ID = uuid.NewV4().String()
 	m.Phone.Scan(phone)
 	if (len(cardno)!=0){
@@ -122,6 +129,10 @@ func (m *Member)FillNewMember(phone string, cardno string, level string) (error,
 		cardno = GetNewCard()
 	}
 	m.CardNo.Scan( cardno )
+
+	if (len(reference)>0){
+		m.Reference.Scan(reference)
+	}
 	if len(level)!=0 {
 		m.Level.String,m.Level.Valid = level,true
 	}

@@ -100,8 +100,58 @@ CREATE TABLE accounts (
     id uuid NOT NULL,
     member_id uuid NOT NULL,
     amount numeric(11,2) DEFAULT (0)::numeric NOT NULL,
-    expiredate date
+    expiredate date,
+    startdate date,
+    getdate date,
+    getamount numeric(11,2) NOT NULL
 );
+
+
+ALTER TABLE accounts OWNER TO ydy;
+
+--
+-- TOC entry 2263 (class 0 OID 0)
+-- Dependencies: 172
+-- Name: COLUMN accounts.amount; Type: COMMENT; Schema: public; Owner: ydy
+--
+
+COMMENT ON COLUMN accounts.amount IS '当前余额';
+
+
+--
+-- TOC entry 2264 (class 0 OID 0)
+-- Dependencies: 172
+-- Name: COLUMN accounts.expiredate; Type: COMMENT; Schema: public; Owner: ydy
+--
+
+COMMENT ON COLUMN accounts.expiredate IS '过期时间';
+
+
+--
+-- TOC entry 2265 (class 0 OID 0)
+-- Dependencies: 172
+-- Name: COLUMN accounts.startdate; Type: COMMENT; Schema: public; Owner: ydy
+--
+
+COMMENT ON COLUMN accounts.startdate IS '生效时间';
+
+
+--
+-- TOC entry 2266 (class 0 OID 0)
+-- Dependencies: 172
+-- Name: COLUMN accounts.getdate; Type: COMMENT; Schema: public; Owner: ydy
+--
+
+COMMENT ON COLUMN accounts.getdate IS '获取时间';
+
+
+--
+-- TOC entry 2267 (class 0 OID 0)
+-- Dependencies: 172
+-- Name: COLUMN accounts.getamount; Type: COMMENT; Schema: public; Owner: ydy
+--
+
+COMMENT ON COLUMN accounts.getamount IS '初始金额';
 
 
 --
@@ -199,10 +249,10 @@ COMMENT ON TABLE transactions IS '交易流水,获取金额或消费金额';
 
 --
 -- TOC entry 177 (class 1259 OID 175669)
--- Name: user_level_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: user_levels_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE user_level_id_seq
+CREATE SEQUENCE user_levels_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
@@ -212,16 +262,51 @@ CREATE SEQUENCE user_level_id_seq
 
 --
 -- TOC entry 178 (class 1259 OID 175671)
--- Name: user_level; Type: TABLE; Schema: public; Owner: -
+-- Name: user_levels; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE user_level (
-    id integer DEFAULT nextval('user_level_id_seq'::regclass) NOT NULL,
+CREATE TABLE user_levels (
+    id integer DEFAULT nextval('user_levels_id_seq'::regclass) NOT NULL,
     sonnode_id uuid NOT NULL,
-    ancestornode_id uuid,
+    ancestornode_id uuid NOT NULL,
     royaltyratio numeric(5,4) DEFAULT 0 NOT NULL,
     generations integer NOT NULL
 );
+
+--
+-- TOC entry 2272 (class 0 OID 0)
+-- Dependencies: 178
+-- Name: COLUMN user_levels.sonnode_id; Type: COMMENT; Schema: public; Owner: ydy
+--
+
+COMMENT ON COLUMN user_levels.sonnode_id IS '子节点';
+
+
+--
+-- TOC entry 2273 (class 0 OID 0)
+-- Dependencies: 178
+-- Name: COLUMN user_levels.ancestornode_id; Type: COMMENT; Schema: public; Owner: ydy
+--
+
+COMMENT ON COLUMN user_levels.ancestornode_id IS '祖辈节点';
+
+
+--
+-- TOC entry 2274 (class 0 OID 0)
+-- Dependencies: 178
+-- Name: COLUMN user_levels.royaltyratio; Type: COMMENT; Schema: public; Owner: ydy
+--
+
+COMMENT ON COLUMN user_levels.royaltyratio IS '分成比例';
+
+
+--
+-- TOC entry 2275 (class 0 OID 0)
+-- Dependencies: 178
+-- Name: COLUMN user_levels.generations; Type: COMMENT; Schema: public; Owner: ydy
+--
+
+COMMENT ON COLUMN user_levels.generations IS '代数 差';
 
 
 --
@@ -274,7 +359,7 @@ SELECT pg_catalog.setval('systemsettings_id_seq', 4, true);
 --
 -- TOC entry 2253 (class 0 OID 175671)
 -- Dependencies: 178
--- Data for Name: user_level; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: user_levels; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 
@@ -282,10 +367,10 @@ SELECT pg_catalog.setval('systemsettings_id_seq', 4, true);
 --
 -- TOC entry 2268 (class 0 OID 0)
 -- Dependencies: 177
--- Name: user_level_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+-- Name: user_levels_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('user_level_id_seq', 1, false);
+SELECT pg_catalog.setval('user_levels_id_seq', 1, false);
 
 
 --
@@ -326,11 +411,11 @@ ALTER TABLE ONLY transactions
 
 --
 -- TOC entry 2133 (class 2606 OID 175711)
--- Name: user_level_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: user_levels_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY user_level
-    ADD CONSTRAINT user_level_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY user_levels
+    ADD CONSTRAINT user_levels_pkey PRIMARY KEY (id);
 
 
 --
@@ -371,20 +456,20 @@ ALTER TABLE ONLY transactions
 
 --
 -- TOC entry 2139 (class 2606 OID 175688)
--- Name: user_level_ancestornode_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: user_levels_ancestornode_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY user_level
-    ADD CONSTRAINT user_level_ancestornode_id_fkey FOREIGN KEY (ancestornode_id) REFERENCES members(id);
+ALTER TABLE ONLY user_levels
+    ADD CONSTRAINT user_levels_ancestornode_id_fkey FOREIGN KEY (ancestornode_id) REFERENCES members(id);
 
 
 --
 -- TOC entry 2138 (class 2606 OID 175683)
--- Name: user_level_sonnode_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: user_levels_sonnode_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY user_level
-    ADD CONSTRAINT user_level_sonnode_id_fkey FOREIGN KEY (sonnode_id) REFERENCES members(id);
+ALTER TABLE ONLY user_levels
+    ADD CONSTRAINT user_levels_sonnode_id_fkey FOREIGN KEY (sonnode_id) REFERENCES members(id);
 
 
 --

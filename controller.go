@@ -3,7 +3,8 @@ import (
   "net/http"
   "fmt"
   "strconv"
-  _"errors"
+  "log"
+  "errors"
   _ "strings"
   "./model"
 )
@@ -17,15 +18,32 @@ func (r *StatResponse)String() string{
   return fmt.Sprintf("%s:%s", r.msg, r.code)
 }
 
+func newMember( phone string, cardno string, reference string, level string) *model.Member{
+  ref := model.NewMember()
+  var reference_id string
+
+  if (len(reference)>0){
+    err, _ := ref.FindByInfo(App.DB, reference)
+    if err==nil{
+        reference_id = ref.ID
+    }
+  }
+  if err:=ref.AddNewMember(App.DB, phone, cardno, reference_id, level);err!=nil{
+    log.Println(err, phone, cardno)
+    return nil;
+  }
+  return ref
+}
+
 func (c *Controller) Consume(w http.ResponseWriter, r *http.Request){
   r.ParseForm()  //解析参数，默认是不会解析的
 //  map :=
-  var phone,cardno string
+  var phone,cardno,reference string
   arr := r.Form["phone"]
   if (len(arr)>0){
     phone = arr[0]
   }
-  fmt.Println(phone)
+  //fmt.Println(phone)
   arr = r.Form["cardno"]
   if (len(arr)>0){
     cardno = arr[0]
@@ -37,31 +55,27 @@ func (c *Controller) Consume(w http.ResponseWriter, r *http.Request){
   */
   m := model.NewMember()
   err,code := m.FindByPhoneOrCardno(App.DB, phone, cardno)
+  //fmt.Println(err,code)
   if code==model.ResNotFound{//新用户
-    ref := model.NewMember()
-    var reference string
     arr = r.Form["reference"]
     if (len(arr)>0){
       reference = arr[0]
     }
-    err, code = ref.FindByInfo(App.DB, reference)
-    if err==nil{
-        m.Reference.Scan(ref.ID)
+    m = newMember(phone, cardno, reference, "")
+    if (m==nil){
+      err = errors.New("用户创建失败"+phone)
+    }else
+    {
+      err = nil
     }
-    fmt.Fprintf(w, "新用户创建")
-    if m.AddNewMember(App.DB, phone, cardno, ""){
-      fmt.Fprintf(w, "新用户创建失败")
-      //return;
-    }
-  }else  if err!=nil{//其他错误
+  }
+  if err!=nil{//其他错误
     fmt.Fprintf(w, err.Error())
     return;
-  }else//老用户
-  {//found, add consume amount
-    fmt.Println("old:",m.ID)
   }
+  fmt.Println("uid:",m.ID)
 
-  fmt.Fprintf(w ,strconv.Itoa(code),m.String()) //这个写入到w的是输出到客户端的
+  fmt.Fprintf(w ,strconv.Itoa(code),m.String())
 }
 
 func (aa *Controller)HandleFunc(){

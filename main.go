@@ -17,6 +17,7 @@ import (
 	"./app"
 	"./conf"
 	"./model"
+
 )
 
 
@@ -40,7 +41,7 @@ func initApp() error {
 	goboot.Log.Info("starting...")
 	//fmt.Printf("found: %s\n", App)
 
-	conf.InitLevels(App.DB)
+	conf.InitLevels(App.DB, &(model.LevelRatios))
 	model.InitCardNo(App.DB)
 	return nil
 }

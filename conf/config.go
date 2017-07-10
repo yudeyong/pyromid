@@ -18,11 +18,7 @@ const (
   LevelRatioSql = "level%ratio"
 )
 
-var (
-  LevelRatios []decimal.Decimal //配置分成比例
-)
-
-func InitLevels(db *gorm.DB)(error){
+func InitLevels(db *gorm.DB,	levelRatios *([]decimal.Decimal) )(error){
   var err error;
   ss :=model.NewSystemSettings();
 
@@ -44,7 +40,7 @@ func InitLevels(db *gorm.DB)(error){
   if size!=v+1 {
     log.Printf("Config %s warning: (SystemSettings)%d!=(db)%d", Levels, v, size-1)
   }
-  LevelRatios = make([]decimal.Decimal,size,size)//空着第一个,从1开始编号
+  *levelRatios = make([]decimal.Decimal,size,size)//空着第一个,从1开始编号
   var i, start int
   start = strings.Index( LevelRatioSql, "%")
   //ASSERT 只支持1位数的分级层数>=10的层数不支持
@@ -55,10 +51,10 @@ func InitLevels(db *gorm.DB)(error){
       return err;
     }
 
-    if LevelRatios[i],err = decimal.NewFromString(ss.Value); err!=nil {
+    if (*levelRatios)[i],err = decimal.NewFromString(ss.Value); err!=nil {
       return err;
     }
   }
-  fmt.Printf("%s\n",LevelRatios);
+  fmt.Printf("%s\n",levelRatios);
   return nil
 }
