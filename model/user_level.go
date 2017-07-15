@@ -1,6 +1,6 @@
 package model
 import (
-	"database/sql"
+	_"database/sql"
 	"errors"
 	"fmt"
 	"log"
@@ -15,9 +15,9 @@ var(
 	LevelRatios []decimal.Decimal //配置分成比例
 )
 type user_level struct{
-	ID                  int  				`gorm:"column:id"`
+	ID                  int  						`gorm:"column:id"`
 	SonID     		      string					`gorm:"column:sonnode_id"`
-	AncestorID     			sql.NullString  `gorm:"column:ancestornode_id"`
+	AncestorID     			string  				`gorm:"column:ancestornode_id"`
   RoyaltyRatio        decimal.Decimal `gorm:"column:royaltyratio"`
 	Generations         int		  				`gorm:"column:generations"`
 	UpdTime		          time.Time 			`gorm:"column:updtime"`
@@ -41,7 +41,7 @@ func (u *user_level)CreateLevels( db * gorm.DB, member *Member )error{
 		ancestors[1] = old
 
 		var ul []user_level
-		db1 := db.Order("generations").Find(&ul, "generations>0 and sonnode_id=?",old)
+		db1 := db.Order("generations").Limit(l-2).Find(&ul, "generations>0 and sonnode_id=?",old)
 		if (db1.Error==nil){
 			var lu int
 			if (ul==nil){
@@ -55,9 +55,9 @@ func (u *user_level)CreateLevels( db * gorm.DB, member *Member )error{
 			if length>0{//祖先代 数不足
 				l -= length
 			}
-			fmt.Println("ancnetor count:",l, length, lu)
+			//fmt.Println("ancnetor count:",l, length, lu)
 			for i:=2; i<l; i+=1{
-				ancestors[i] = ul[i-2].AncestorID.String
+				ancestors[i] = ul[i-2].AncestorID
 			}
 		}else
 		{
@@ -66,7 +66,8 @@ func (u *user_level)CreateLevels( db * gorm.DB, member *Member )error{
 	}
 	fmt.Println("valid ancnetor:",l)
 	for i:=0; i<l; i+= 1{
-		fmt.Println("add ul:",u.AddNewUserLevel(db, member.ID, ancestors[i],i))
+		//fmt.Println("add ul:",
+		u.AddNewUserLevel(db, member.ID, ancestors[i],i)
 	}
 
 	return nil
@@ -81,7 +82,7 @@ func (u *user_level)AddNewUserLevel(db *gorm.DB, son string, ancestor string, ge
 func (u *user_level) FillNewUserLevel(son string, ancestor string, generations int){
 	u.ID = 0//自增, 清除
 	u.SonID = son
-	u.AncestorID.Scan( ancestor)
+	u.AncestorID = ancestor
 	u.RoyaltyRatio = LevelRatios[generations]
 	u.Generations = generations
 	u.UpdTime = time.Now()
