@@ -166,6 +166,7 @@ CREATE TABLE members (
     level integer,
     createtime timestamp without time zone,
     reference_id uuid
+    name text,
 );
 
 
