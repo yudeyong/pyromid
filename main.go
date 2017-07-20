@@ -2,40 +2,41 @@ package main
 
 import (
 	"flag"
-	"net/http"
 	"fmt"
+	"net/http"
+	_ "strconv"
 	"strings"
 	"time"
-	_ "strconv"
 
 	_ "net/http/pprof"
 
+	"./app"
+	"./conf"
+	"./model"
 	"github.com/e2u/goboot"
 	"github.com/e2u/goboot/jobs"
 	"github.com/gorilla/mux"
 	_ "github.com/lib/pq"
-	"./app"
-	"./conf"
-	"./model"
-
 )
 
-
 var (
-	RunEnv  string
+	//RunEnv 运行环境
+	RunEnv string
+	//App 开发环境
 	App     *app.AppContext
 	stoping bool
+	//ListenPort 监听端口
 	ListenPort int
 
 	retrySQSQueue string
 )
 
+//Controller 响应控制器
 type Controller struct {
 }
 
-const (
+const ()
 
-)
 func initApp() error {
 	App = app.NewAppContext()
 	goboot.Log.Info("starting...")
@@ -45,7 +46,6 @@ func initApp() error {
 	model.InitCardNo(App.DB)
 	return nil
 }
-
 
 // 初始化函数
 func init() {
@@ -58,11 +58,10 @@ func init() {
 	goboot.Startup()
 }
 
-
 func srvMain(w http.ResponseWriter, r *http.Request) {
-	r.ParseForm()  //解析参数，默认是不会解析的
-	fmt.Println(r.Form)  //这些信息是输出到服务器端的打印信息
-	action :=string([]rune( r.URL.Path)[1:])
+	r.ParseForm()       //解析参数，默认是不会解析的
+	fmt.Println(r.Form) //这些信息是输出到服务器端的打印信息
+	action := string([]rune(r.URL.Path)[1:])
 	fmt.Println("path", r.URL.Path, action)
 	fmt.Println("scheme", r.URL.Scheme)
 	fmt.Println(r.Form["url_long"])
@@ -75,7 +74,7 @@ func srvMain(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	jobs.SelfConcurrent = false // 不允许并发,只能运行完一个任务再运行下一个任务
-//	go jobs.Every(time.Minute, HealthJob{})
+	//	go jobs.Every(time.Minute, HealthJob{})
 
 	c := &Controller{}
 	r := mux.NewRouter()
@@ -89,7 +88,7 @@ func main() {
 		WriteTimeout: 15 * time.Second,
 		ReadTimeout:  15 * time.Second,
 	}
-	srv.ListenAndServe();
+	srv.ListenAndServe()
 
 	defer func() {
 		App.DB.Close()

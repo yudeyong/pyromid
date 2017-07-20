@@ -20,12 +20,36 @@ func GetPara(r *http.Request, key string) string {
 	return ""
 }
 
+type consumeResp struct {
+	RespCode   string `json:"respCode"`
+	RespMsg    string `json:"respMsg"`
+	MemberID   string `json:"id"`
+	PayAmount  string `json:"payamount"`
+	GainPoints string `json:"gainpoints"`
+	PointUsed  string `json:"pointused"`
+}
+
 //Consume 消耗积分
 //  id      : memberid
-//  amount  : 消费积分
-//  usePoint: 是否使用余额,缺省否
+//  amount  : 消费金额 单位分, 例:120 = 1块2毛
+//  usepoint: 是否使用余额,缺省否
+//	orderno	:	订单号
 func (c *Controller) Consume(w http.ResponseWriter, r *http.Request) {
+	r.ParseForm() //解析参数，默认是不会解析的
+	resp := consumeResp{}
+	id := GetPara(r, "id")
+	m := model.NewMember()
+	if err := m.FindByID(App.DB, id); err != nil {
+		resp.RespMsg = err.Error()
+		fmt.Fprintf(w, JSONString(resp))
+		return
+	}
 
+	usePoint := GetPara(r, "usepoint")
+	amount := GetPara(r, "amount")
+	order := GetPara(r, "orderno")
+	//fmt.Println("consume:", id, amount, usePoint)
+	model.Consume(App.DB, m, amount, usePoint, order)
 }
 
 type userResp struct {
@@ -37,7 +61,8 @@ type userResp struct {
 	Phone    string `json:"phone"`
 }
 
-func (r *userResp) String() string {
+//JSONString output jason object
+func JSONString(r interface{}) string {
 	jb, err := json.Marshal(r)
 	if err != nil {
 		return ""
@@ -55,7 +80,7 @@ func (r *userResp) CopyMemberInfo(m *model.Member) {
 }
 func (r *userResp) Message(code string, message string) string {
 	r.SetMessage(code, message)
-	return r.String()
+	return JSONString(r)
 }
 
 //CheckUser 检查用户
@@ -76,7 +101,7 @@ func (c *Controller) CheckUser(w http.ResponseWriter, r *http.Request) {
 	}
 	*/
 	m := model.NewMember()
-	err, code := m.FindByPhoneOrCardno(App.DB, phone, cardno)
+	code, err := m.FindByPhoneOrCardno(App.DB, phone, cardno)
 	//fmt.Println(err,code)
 	switch code {
 	case model.ResNotFound: //新用户
@@ -93,7 +118,7 @@ func (c *Controller) CheckUser(w http.ResponseWriter, r *http.Request) {
 		}
 	case model.ResFound: //老用户
 		var i int
-		err, i = model.GetAmountByMember(App.DB, m)
+		i, err = model.GetAmountByMember(App.DB, m)
 		if err != nil {
 			code = model.ResFail
 		} else {
@@ -106,5 +131,5 @@ func (c *Controller) CheckUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	resp.RespCode = code
-	fmt.Fprintf(w, resp.String())
+	fmt.Fprintf(w, JSONString(resp))
 }
