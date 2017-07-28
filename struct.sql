@@ -101,8 +101,8 @@ CREATE TABLE accounts (
     member_id uuid NOT NULL,
     amount numeric(11,2) DEFAULT (0)::numeric NOT NULL,
     expiredate date,
-    startdate date,
-    getdate date,
+    startdate date NOT NULL,
+    getdate date NOT NULL,
     getamount numeric(11,2) NOT NULL
 );
 

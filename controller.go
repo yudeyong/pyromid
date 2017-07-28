@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 	_ "strings"
 
 	"./model"
@@ -117,12 +116,11 @@ func (c *Controller) CheckUser(w http.ResponseWriter, r *http.Request) {
 			resp.CopyMemberInfo(m)
 		}
 	case model.ResFound: //老用户
-		var i int
-		i, err = model.GetAmountByMember(App.DB, m)
-		if err != nil {
+		i, err1 := model.GetAmountByMember(App.DB, m)
+		if err1 != nil {
 			code = model.ResFail
 		} else {
-			resp.Amount = strconv.Itoa(i)
+			resp.Amount = i.String()
 			resp.CopyMemberInfo(m)
 		}
 	}

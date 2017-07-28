@@ -14,8 +14,9 @@ import (
 )
 
 var (
-	//LevelRatios 配置分成比例
-	LevelRatios []decimal.Decimal
+	//levelRatios 配置分成比例
+	levelRatios []decimal.Decimal
+	totalRatio  decimal.Decimal
 )
 
 //UserLevel 用户关系表
@@ -28,10 +29,24 @@ type UserLevel struct {
 	UpdTime      time.Time       `gorm:"column:updtime"`
 }
 
+//InitLevelRatios 初始化分成比例
+func InitLevelRatios(ratios *([]decimal.Decimal)) error {
+	if len(*ratios) <= 0 {
+		return errors.New("无返利配置!")
+	}
+	levelRatios = make([]decimal.Decimal, len(*ratios))
+	totalRatio = decimal.New(0, 4)
+	for i, d := range *ratios {
+		levelRatios[i] = d
+		totalRatio.Add(d)
+	}
+	return nil
+}
+
 //CreateLevels 创建level记录
 func CreateLevels(db *gorm.DB, member *Member) (*UserLevel, error) {
 	u := &UserLevel{}
-	l := len(LevelRatios)
+	l := len(levelRatios)
 	length := l
 	if l <= 0 {
 		return nil, errors.New("返利配置错误")
@@ -89,15 +104,15 @@ func (u *UserLevel) fillNewUserLevel(son string, ancestor string, generations in
 	u.ID = 0 //自增, 清除
 	u.SonID = son
 	u.AncestorID = ancestor
-	u.RoyaltyRatio = LevelRatios[generations]
+	u.RoyaltyRatio = levelRatios[generations]
 	u.Generations = generations
 	u.UpdTime = time.Now()
 }
 
 //GetLevelsByMember 获取用户
-func GetLevelsByMember(db *gorm.DB, m *Member) ([]UserLevel, error) {
+func getLevelsByMember(db *gorm.DB, mid string) ([]UserLevel, error) {
 	var ul []UserLevel
-	db1 := db.Order("generations").Limit(len(LevelRatios)).Find(&ul, "sonnode_id=?", m.ID)
+	db1 := db.Order("generations").Limit(len(levelRatios)).Find(&ul, "sonnode_id=?", mid)
 	if db1.Error != nil {
 		fmt.Println(db1.Error)
 	} else { //校验返回结果 有序, 连续

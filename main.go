@@ -41,8 +41,11 @@ func initApp() error {
 	App = app.NewAppContext()
 	goboot.Log.Info("starting...")
 	//fmt.Printf("found: %s\n", App)
-
-	conf.InitLevels(App.DB, &(model.LevelRatios))
+	ratios, err := conf.InitLevels(App.DB)
+	if err != nil {
+		return err
+	}
+	model.InitLevelRatios(ratios)
 	model.InitCardNo(App.DB)
 	return nil
 }

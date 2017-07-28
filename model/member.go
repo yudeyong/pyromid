@@ -157,7 +157,7 @@ func AddNewMember(db *gorm.DB, phone string, cardno string, reference string, le
 
 //CreateMember 简单创建用户
 func (m *Member) CreateMember(db *gorm.DB, phone string, cardno string, reference string, level string, name string) error {
-	m.FillNewMember(phone, cardno, reference, level, name)
+	m.fillNewMember(phone, cardno, reference, level, name)
 	db.Create(m)
 	if db.NewRecord(m) {
 		return errors.New("用户创建失败")
@@ -167,8 +167,8 @@ func (m *Member) CreateMember(db *gorm.DB, phone string, cardno string, referenc
 	return nil
 }
 
-//FillNewMember 填充新member对象
-func (m *Member) FillNewMember(phone string, cardno string, reference string, level string, name string) (*Member, error) {
+//fillNewMember 填充新member对象
+func (m *Member) fillNewMember(phone string, cardno string, reference string, level string, name string) (*Member, error) {
 	m.ID = uuid.NewV4().String()
 	m.Phone.Scan(phone)
 	if len(cardno) != 0 {

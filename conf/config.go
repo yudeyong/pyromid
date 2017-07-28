@@ -23,19 +23,20 @@ const (
 )
 
 //InitLevels 初始化各级回扣比例
-func InitLevels(db *gorm.DB, levelRatios *([]decimal.Decimal)) error {
+func InitLevels(db *gorm.DB) (*([]decimal.Decimal), error) {
 	var err error
+	var levelRatios ([]decimal.Decimal)
 	ss := model.NewSystemSettings()
 
 	_, err = ss.FindByCode(db, Levels)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	//var v 配置数量
 	v, err := strconv.Atoi(ss.Value)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var sss []model.SystemSettings
@@ -45,7 +46,7 @@ func InitLevels(db *gorm.DB, levelRatios *([]decimal.Decimal)) error {
 	if size != v+1 {
 		log.Printf("Config %s warning: (SystemSettings)%d!=(db)%d", Levels, v, size-1)
 	}
-	*levelRatios = make([]decimal.Decimal, size, size) //空着第一个,从1开始编号
+	levelRatios = make([]decimal.Decimal, size, size) //空着第一个,从1开始编号
 	var i, start int
 	start = strings.Index(LevelRatioSQL, "%")
 	//ASSERT 只支持1位数的分级层数>=10的层数不支持
@@ -53,13 +54,13 @@ func InitLevels(db *gorm.DB, levelRatios *([]decimal.Decimal)) error {
 	for i, *ss = range sss {
 
 		if i, err = strconv.Atoi(string([]rune(ss.Code)[start : start+1])); err != nil {
-			return err
+			return nil, err
 		}
 
-		if (*levelRatios)[i], err = decimal.NewFromString(ss.Value); err != nil {
-			return err
+		if (levelRatios)[i], err = decimal.NewFromString(ss.Value); err != nil {
+			return nil, err
 		}
 	}
 	fmt.Println("lvl ", levelRatios)
-	return nil
+	return &levelRatios, nil
 }
