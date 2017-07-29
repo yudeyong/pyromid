@@ -83,6 +83,7 @@ func main() {
 	r := mux.NewRouter()
 	r.HandleFunc("/consume", c.Consume)
 	r.HandleFunc("/checkuser", c.CheckUser)
+	r.HandleFunc("/checkaccount", c.CheckAccount)
 	r.HandleFunc("/", srvMain) //设置访问的路由
 	srv := &http.Server{
 		Handler: r,

@@ -7,8 +7,24 @@ import (
 	"net/http"
 	_ "strings"
 
+	"github.com/shopspring/decimal"
+
 	"./model"
 )
+
+type msgResp struct {
+	RespCode string `json:"respCode"`
+	RespMsg  string `json:"respMsg"`
+}
+
+func (m *msgResp) messageString(code string, message string) string {
+	m.setMessage(code, message)
+	return JSONString(m)
+}
+func (m *msgResp) setMessage(code string, message string) {
+	m.RespCode = code
+	m.RespMsg = message
+}
 
 //GetPara 获取key对应参数值, 不存在返回""
 func GetPara(r *http.Request, key string) string {
@@ -17,6 +33,57 @@ func GetPara(r *http.Request, key string) string {
 		return arr[0]
 	}
 	return ""
+}
+
+type checkAccountResp struct {
+	RespCode string `json:"respCode"`
+	RespMsg  string `json:"respMsg"`
+	Points   string `json:"points"`
+}
+
+//CheckAccount 查询积分
+//  id      : memberid
+//  phone  : 消费金额 单位分, 例:120 = 1块2毛
+//  cardno: 是否使用余额,缺省否
+//	至少1个不为空
+func (c *Controller) CheckAccount(w http.ResponseWriter, r *http.Request) {
+	r.ParseForm() //解析参数，默认是不会解析的
+	id := GetPara(r, "id")
+	var m *model.Member
+	var err error
+	m = model.NewMember()
+	errMsg := &msgResp{}
+	if len(id) != 0 {
+		err = m.FindByID(App.DB, id)
+		//fmt.Println("ck account:", err, m)
+	} else {
+		phone := GetPara(r, "phone")
+		//fmt.Println(phone)
+		cardno := GetPara(r, "cardno")
+		if len(phone) == 0 && len(cardno) == 0 {
+			fmt.Fprintf(w, errMsg.messageString(model.ResFail, "请输入手机号或卡号或id"))
+			return
+		}
+		_, err = m.FindByPhoneOrCardno(App.DB, phone, cardno)
+
+	}
+	if err != nil {
+		fmt.Fprintf(w, errMsg.messageString(model.ResFail, err.Error()))
+		return
+	}
+	//assert(m)
+	var d decimal.Decimal
+	d, err = model.GetAmountByMember(App.DB, m.ID)
+	if err != nil {
+		fmt.Fprintf(w, errMsg.messageString(model.ResFail, err.Error()))
+		return
+	}
+	resp := checkAccountResp{}
+	resp.RespCode = model.ResOK
+	resp.RespMsg = "OK"
+	resp.Points = d.String()
+	//fmt.Println("ck account:", resp)
+	fmt.Fprintf(w, JSONString(resp))
 }
 
 type consumeResp struct {
@@ -36,12 +103,11 @@ type consumeResp struct {
 //	orderno	:	订单号
 func (c *Controller) Consume(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm() //解析参数，默认是不会解析的
-	resp := consumeResp{}
 	id := GetPara(r, "id")
 	m := model.NewMember()
+	errMsg := &msgResp{}
 	if err := m.FindByID(App.DB, id); err != nil {
-		resp.RespMsg = err.Error()
-		fmt.Fprintf(w, JSONString(resp))
+		fmt.Fprintf(w, errMsg.messageString(model.ResFail, err.Error()))
 		return
 	}
 
@@ -51,19 +117,18 @@ func (c *Controller) Consume(w http.ResponseWriter, r *http.Request) {
 	//fmt.Println("consume:", id, amount, usePoint)
 	result, err := model.Consume(App.DB, m, amount, usePoint, order)
 	if err != nil {
-		resp.RespCode = "500"
-		resp.RespMsg = err.Error()
-
+		fmt.Fprintf(w, errMsg.messageString(model.ResFail, err.Error()))
 	} else {
-		resp.RespCode = "200"
+		resp := consumeResp{}
+		resp.RespCode = model.ResOK
 		resp.RespMsg = "ok"
 		resp.MemberID = m.ID
 		resp.GainPoints = result.GainPoints
 		resp.PayAmount = result.PayAmount
 		resp.PointUsed = result.PointUsed
 		resp.SelfGainPoints = result.SelfGainPoints
+		fmt.Fprintf(w, JSONString(resp))
 	}
-	fmt.Fprintf(w, JSONString(resp))
 }
 
 type userResp struct {
@@ -83,18 +148,10 @@ func JSONString(r interface{}) string {
 	}
 	return string(jb)
 }
-func (r *userResp) SetMessage(code string, message string) {
-	r.RespCode = code
-	r.RespMsg = message
-}
 func (r *userResp) CopyMemberInfo(m *model.Member) {
 	r.MemberID = m.ID
 	r.Name = m.Name.String
 	r.Phone = m.Phone.String
-}
-func (r *userResp) Message(code string, message string) string {
-	r.SetMessage(code, message)
-	return JSONString(r)
 }
 
 //CheckUser 检查用户
@@ -109,16 +166,11 @@ func (c *Controller) CheckUser(w http.ResponseWriter, r *http.Request) {
 	phone := GetPara(r, "phone")
 	//fmt.Println(phone)
 	cardno := GetPara(r, "cardno")
-	/*  for k, v := range r.Form {
-		fmt.Println("key:", k)
-		fmt.Println("val:", strings.Join(v, ""))
-	}
-	*/
 	m := model.NewMember()
 	code, err := m.FindByPhoneOrCardno(App.DB, phone, cardno)
 	//fmt.Println(err,code)
 	switch code {
-	case model.ResNotFound: //新用户
+	case model.ResNotFound: //需建新用户
 		name := GetPara(r, "name")
 		reference := GetPara(r, "reference")
 		m = model.AddNewMember(App.DB, phone, cardno, reference, "", name)
@@ -140,7 +192,8 @@ func (c *Controller) CheckUser(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if err != nil { //其他错误
-		fmt.Fprintf(w, resp.Message(code, err.Error()))
+		errMsg := &msgResp{}
+		fmt.Fprintf(w, errMsg.messageString(code, err.Error()))
 		return
 	}
 	resp.RespCode = code

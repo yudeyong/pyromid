@@ -75,7 +75,7 @@ func Consume(db *gorm.DB, m *Member, amountStr string, usePoint string, orderID 
 	if err != nil {
 		return nil, err
 	}
-	amount = amount.Mul(decimal.New(1, -2)) //分为单位,转换成元
+	//amount = amount.Mul(decimal.New(1, -2)) //分为单位,转换成元
 	var isuse bool
 	if len(usePoint) > 0 {
 		//if err, isuse=false
@@ -108,7 +108,7 @@ func Consume(db *gorm.DB, m *Member, amountStr string, usePoint string, orderID 
 		}
 	}
 
-	result := &ConsumeResult{point.Round(2).String(), amount.Round(2).String(), accounts[0].Amount.Round(2).String(), totalAmount(accounts).Round(2).String()}
+	result := &ConsumeResult{point.Round(0).String(), amount.Round(0).String(), accounts[0].Amount.Round(0).String(), totalAmount(accounts).Round(0).String()}
 	return result, nil
 }
 
@@ -196,14 +196,16 @@ func saveConsume(db *gorm.DB, transactions []Transaction, accounts []Account, t 
 			return false
 		}
 	}
-	fmt.Println("tran")
-	if err := t.saveNew(tx); err != nil {
-		tx.Rollback()
-		goboot.Log.Error("consume save error, rollback.")
-		return false
+	if t != nil {
+		//fmt.Println("tran")
+		if err := t.saveNew(tx); err != nil {
+			tx.Rollback()
+			goboot.Log.Error("consume save error, rollback.")
+			return false
+		}
 	}
 	tx.Commit()
-	fmt.Println("consume done")
+	//fmt.Println("consume done")
 	return true
 
 }
