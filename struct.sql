@@ -103,7 +103,8 @@ CREATE TABLE accounts (
     expiredate date,
     startdate date NOT NULL,
     getdate date NOT NULL,
-    getamount numeric(11,2) NOT NULL
+    getamount numeric(11,2) NOT NULL,
+    updtime timestamp without time zone NOT NULL
 );
 
 
@@ -163,10 +164,10 @@ CREATE TABLE members (
     id uuid NOT NULL,
     cardno text,
     phone text,
-    level integer,
-    createtime timestamp without time zone,
-    reference_id uuid
-    name text,
+    level integer NOT NULL,
+    createtime timestamp without time zone NOT NULL,
+    reference_id uuid,
+    name text
 );
 
 
@@ -271,7 +272,8 @@ CREATE TABLE user_levels (
     sonnode_id uuid NOT NULL,
     ancestornode_id uuid NOT NULL,
     royaltyratio numeric(5,4) DEFAULT 0 NOT NULL,
-    generations integer NOT NULL
+    generations integer NOT NULL,
+    updtime timestamp without time zone NOT NULL
 );
 
 --

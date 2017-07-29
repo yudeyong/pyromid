@@ -20,12 +20,13 @@ func GetPara(r *http.Request, key string) string {
 }
 
 type consumeResp struct {
-	RespCode   string `json:"respCode"`
-	RespMsg    string `json:"respMsg"`
-	MemberID   string `json:"id"`
-	PayAmount  string `json:"payamount"`
-	GainPoints string `json:"gainpoints"`
-	PointUsed  string `json:"pointused"`
+	RespCode       string `json:"respCode"`
+	RespMsg        string `json:"respMsg"`
+	MemberID       string `json:"id"`
+	PointUsed      string `json:"pointused"`
+	PayAmount      string `json:"payamount"`
+	SelfGainPoints string `json:"selfgainpoints"`
+	GainPoints     string `json:"gainpoints"`
 }
 
 //Consume 消耗积分
@@ -48,7 +49,21 @@ func (c *Controller) Consume(w http.ResponseWriter, r *http.Request) {
 	amount := GetPara(r, "amount")
 	order := GetPara(r, "orderno")
 	//fmt.Println("consume:", id, amount, usePoint)
-	model.Consume(App.DB, m, amount, usePoint, order)
+	result, err := model.Consume(App.DB, m, amount, usePoint, order)
+	if err != nil {
+		resp.RespCode = "500"
+		resp.RespMsg = err.Error()
+
+	} else {
+		resp.RespCode = "200"
+		resp.RespMsg = "ok"
+		resp.MemberID = m.ID
+		resp.GainPoints = result.GainPoints
+		resp.PayAmount = result.PayAmount
+		resp.PointUsed = result.PointUsed
+		resp.SelfGainPoints = result.SelfGainPoints
+	}
+	fmt.Fprintf(w, JSONString(resp))
 }
 
 type userResp struct {
@@ -116,7 +131,7 @@ func (c *Controller) CheckUser(w http.ResponseWriter, r *http.Request) {
 			resp.CopyMemberInfo(m)
 		}
 	case model.ResFound: //老用户
-		i, err1 := model.GetAmountByMember(App.DB, m)
+		i, err1 := model.GetAmountByMember(App.DB, m.ID)
 		if err1 != nil {
 			code = model.ResFail
 		} else {

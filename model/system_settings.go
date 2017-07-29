@@ -2,7 +2,6 @@ package model
 
 import (
 	"database/sql"
-	_ "errors"
 	"fmt"
 	"time"
 

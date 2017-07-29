@@ -22,24 +22,27 @@ type Transaction struct {
 	TransactionTime time.Time       `gorm:"column:transactiontime"`
 }
 
+func (t *Transaction) fillTransaction(orderID string, sourceID string, targetID string, amount decimal.Decimal) {
+	t.ID = uuid.NewV4().String()
+	if len(orderID) > 0 {
+		t.OrderID.Scan(orderID)
+	}
+	t.SourceID = sourceID
+	t.TargetID = targetID
+	t.Amount = amount
+	t.TransactionTime = time.Now()
+}
+
 //CreateTransactionsByLevels 根据用户祖先返回产生返利关系,交易记录
 func createTransactionsByLevels(db *gorm.DB, ul []UserLevel, amount decimal.Decimal, orderID string) []Transaction {
 	ts := make([]Transaction, len(ul))
 	id := ul[0].SonID
-	now := time.Now()
+	//now := time.Now()
 	for i := range ts {
-		ts[i].ID = uuid.NewV4().String()
-		if len(orderID) > 0 {
-			ts[i].OrderID.Scan(orderID)
-		}
-		ts[i].SourceID = id
-		ts[i].TargetID = ul[i].AncestorID
-		d := amount
-		d1 := d.Mul(levelRatios[i])
-		d.Round(4)
-		fmt.Println(d, d1, levelRatios[i])
-		ts[i].Amount = d1
-		ts[i].TransactionTime = now
+		d1 := amount.Mul(levelRatios[i])
+		d1.Round(4)
+		//fmt.Println("createTransactionsByLevels", d1, levelRatios[i])
+		ts[i].fillTransaction(orderID, id, ul[i].AncestorID, d1)
 	}
 	//4位精度造成精度差的概率极低,
 	//如果做到严格准确, 可以把最后一个返利金额, 如下操作
@@ -47,7 +50,7 @@ func createTransactionsByLevels(db *gorm.DB, ul []UserLevel, amount decimal.Deci
 	return ts
 }
 
-func (t *Transaction) save(db *gorm.DB) error {
+func (t *Transaction) saveNew(db *gorm.DB) error {
 	db.Create(t)
 	if db.NewRecord(t) {
 		return errors.New("交易创建失败")

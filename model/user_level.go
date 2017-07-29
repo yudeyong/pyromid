@@ -1,11 +1,9 @@
 package model
 
 import (
-	_ "database/sql"
 	"errors"
 	"fmt"
 	"log"
-	_ "strconv"
 	"time"
 
 	gorm "gopkg.in/jinzhu/gorm.v1"
@@ -32,7 +30,7 @@ type UserLevel struct {
 //InitLevelRatios 初始化分成比例
 func InitLevelRatios(ratios *([]decimal.Decimal)) error {
 	if len(*ratios) <= 0 {
-		return errors.New("无返利配置!")
+		return errors.New("无返利配置")
 	}
 	levelRatios = make([]decimal.Decimal, len(*ratios))
 	totalRatio = decimal.New(0, 4)
