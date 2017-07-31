@@ -120,13 +120,13 @@ func (c *Controller) CheckAccount(w http.ResponseWriter, r *http.Request) {
 	var err error
 	m = model.NewMember()
 	errMsg := &msgResp{}
-	if len(id) != 0 {
-		err = m.FindByID(App.DB, id)
-		if err != nil {
-			fmt.Fprintf(w, errMsg.messageString(model.ResInvalid, err.Error()))
-			return
-		}
-	} else {
+	if len(id) == 0 {
+		// err = m.FindByID(App.DB, id)
+		// if err != nil {
+		// 	fmt.Fprintf(w, errMsg.messageString(model.ResFail, err.Error()))
+		// 	return
+		// }
+		//} else {
 		phone := GetPara(r, "phone")
 		//fmt.Println(phone)
 		cardno := GetPara(r, "cardno")
@@ -139,10 +139,11 @@ func (c *Controller) CheckAccount(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintf(w, errMsg.messageString(model.ResFail, err.Error()))
 			return
 		}
+		id = m.ID
 	}
 	//assert(m)
 	var d decimal.Decimal
-	d, err = model.GetAmountByMember(App.DB, m.ID)
+	d, err = model.GetAmountByMember(App.DB, id)
 	if err != nil {
 		fmt.Fprintf(w, errMsg.messageString(model.ResFail, err.Error()))
 		return
