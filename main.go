@@ -84,6 +84,9 @@ func main() {
 	r.HandleFunc("/consume", c.Consume)
 	r.HandleFunc("/checkuser", c.CheckUser)
 	r.HandleFunc("/checkaccount", c.CheckAccount)
+	r.HandleFunc("/gainhistory", c.GainHistory)
+	r.HandleFunc("/consumehistory", c.ConsumeHistory)
+	r.HandleFunc("/bind", c.Bind)
 	r.HandleFunc("/", srvMain) //设置访问的路由
 	srv := &http.Server{
 		Handler: r,

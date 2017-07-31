@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	_ "strings"
 
 	"github.com/shopspring/decimal"
@@ -35,6 +36,72 @@ func GetPara(r *http.Request, key string) string {
 	return ""
 }
 
+//Bind 绑定用户推荐
+//	id 被绑定会员id
+//	ref 推荐会员id
+func (c *Controller) Bind(w http.ResponseWriter, r *http.Request) {
+	r.ParseForm() //解析参数，默认是不会解析的
+	id := GetPara(r, "id")
+	ref := GetPara(r, "ref")
+	errMsg := &msgResp{}
+	if len(id) == 0 || len(ref) == 0 {
+		fmt.Fprintf(w, errMsg.messageString(model.ResInvalid, "id or ref不能为空"))
+		return
+	}
+	err := model.BindMemberReference(App.DB, id, ref)
+	if err != nil {
+		fmt.Fprintf(w, errMsg.messageString(model.ResFail, err.Error()))
+		return
+	}
+
+	fmt.Fprintf(w, errMsg.messageString(model.ResOK, "Done"))
+}
+
+type historyResp struct {
+	RespCode string                     `json:"respCode"`
+	RespMsg  string                     `json:"respMsg"`
+	History  []model.HistoryTransaction `json:"history"`
+}
+
+func (c *Controller) history(w http.ResponseWriter, r *http.Request, greaterOrLess string) {
+	r.ParseForm() //解析参数，默认是不会解析的
+	id := GetPara(r, "id")
+	//var err error
+	errMsg := &msgResp{}
+	if len(id) == 0 {
+		fmt.Fprintf(w, errMsg.messageString(model.ResInvalid, "id不能为空"))
+		return
+	}
+	str := GetPara(r, "pagesize")
+	size, _ := strconv.Atoi(str)
+	str = GetPara(r, "offset")
+	offset, _ := strconv.Atoi(str)
+	//fmt.Println(id, size, offset)
+	history, err := model.TransactionHistoryByID(App.DB, id, size, offset, greaterOrLess)
+	if err != nil {
+		fmt.Fprintf(w, errMsg.messageString(model.ResFail, err.Error()))
+		return
+	}
+	resp := historyResp{model.ResOK, "OK", history}
+	fmt.Fprintf(w, JSONString(resp))
+}
+
+//GainHistory 查询交易记录
+//  id      : memberid
+//	pagesize:
+//	offset:
+func (c *Controller) GainHistory(w http.ResponseWriter, r *http.Request) {
+	c.history(w, r, ">")
+}
+
+//ConsumeHistory 查询交易记录
+//  id      : memberid
+//	pagesize:
+//	offset:
+func (c *Controller) ConsumeHistory(w http.ResponseWriter, r *http.Request) {
+	c.history(w, r, "<")
+}
+
 type checkAccountResp struct {
 	RespCode string `json:"respCode"`
 	RespMsg  string `json:"respMsg"`
@@ -55,21 +122,23 @@ func (c *Controller) CheckAccount(w http.ResponseWriter, r *http.Request) {
 	errMsg := &msgResp{}
 	if len(id) != 0 {
 		err = m.FindByID(App.DB, id)
-		//fmt.Println("ck account:", err, m)
+		if err != nil {
+			fmt.Fprintf(w, errMsg.messageString(model.ResInvalid, err.Error()))
+			return
+		}
 	} else {
 		phone := GetPara(r, "phone")
 		//fmt.Println(phone)
 		cardno := GetPara(r, "cardno")
 		if len(phone) == 0 && len(cardno) == 0 {
-			fmt.Fprintf(w, errMsg.messageString(model.ResFail, "请输入手机号或卡号或id"))
+			fmt.Fprintf(w, errMsg.messageString(model.ResInvalid, "请输入手机号或卡号或id"))
 			return
 		}
 		_, err = m.FindByPhoneOrCardno(App.DB, phone, cardno)
-
-	}
-	if err != nil {
-		fmt.Fprintf(w, errMsg.messageString(model.ResFail, err.Error()))
-		return
+		if err != nil {
+			fmt.Fprintf(w, errMsg.messageString(model.ResFail, err.Error()))
+			return
+		}
 	}
 	//assert(m)
 	var d decimal.Decimal

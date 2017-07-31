@@ -29,6 +29,35 @@ const (
 	regular = "^(13[0-9]|14[57]|15[0-35-9]|18[07-9])\\d{8}$"
 )
 
+//BindMemberReference 绑定推荐会员
+func BindMemberReference(db *gorm.DB, mid string, ref string) error {
+	m := NewMember()
+	err := m.FindByID(db, mid)
+	if err != nil {
+		return err
+	}
+	if true == m.Reference.Valid {
+		return errors.New("用户已有推荐用户")
+	}
+	var ul *UserLevel
+	//被推荐用户不能是推荐用户的'祖先'
+	ul, err = checkAncestor(db, ref, mid)
+	if err != nil {
+		return err
+	}
+	if ul != nil {
+		return errors.New("不能循环推荐")
+	}
+	r := NewMember()
+	if err = r.FindByID(db, ref); err != nil {
+		return err
+	}
+	fmt.Println(m, r)
+	m.Reference.Scan(r.ID)
+	db.Save(m)
+	return nil
+}
+
 //ValidatePhone 校验手机号格式
 func ValidatePhone(mobileNum string) bool {
 	reg := regexp.MustCompile(regular)

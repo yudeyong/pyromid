@@ -27,6 +27,20 @@ type UserLevel struct {
 	UpdTime      time.Time       `gorm:"column:updtime"`
 }
 
+// 是否mid祖先中包含 ref
+// return nil,nil 不包含
+func checkAncestor(db *gorm.DB, mid string, ref string) (*UserLevel, error) {
+	ul := UserLevel{}
+	db1 := db.Where("sonnode_id=? and ancestornode_id=?", mid, ref).First(&ul)
+	if db1.RecordNotFound() {
+		return nil, nil
+	}
+	if db1.Error != nil {
+		return nil, db1.Error
+	}
+	return &ul, nil
+}
+
 //InitLevelRatios 初始化分成比例
 func InitLevelRatios(ratios *([]decimal.Decimal)) error {
 	if len(*ratios) <= 0 {
