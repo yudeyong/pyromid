@@ -12,6 +12,7 @@ import (
 
 	"./app"
 	"./conf"
+	"./controller"
 	"./model"
 	"github.com/e2u/goboot"
 	"github.com/e2u/goboot/jobs"
@@ -21,9 +22,7 @@ import (
 
 var (
 	//RunEnv 运行环境
-	RunEnv string
-	//App 开发环境
-	App     *app.AppContext
+	RunEnv  string
 	stoping bool
 	//ListenPort 监听端口
 	ListenPort int
@@ -31,22 +30,17 @@ var (
 	retrySQSQueue string
 )
 
-//Controller 响应控制器
-type Controller struct {
-}
-
 const ()
 
 func initApp() error {
-	App = app.NewAppContext()
+	appInstance := app.Init()
 	goboot.Log.Info("starting...")
 	//fmt.Printf("found: %s\n", App)
-	ratios, err := conf.InitLevels(App.DB)
+	ratios, err := conf.InitLevels(appInstance.DB)
 	if err != nil {
 		return err
 	}
-	model.InitLevelRatios(ratios)
-	model.InitCardNo(App.DB)
+	model.Init(appInstance.DB, ratios)
 	return nil
 }
 
@@ -79,7 +73,7 @@ func main() {
 	jobs.SelfConcurrent = false // 不允许并发,只能运行完一个任务再运行下一个任务
 	//	go jobs.Every(time.Minute, HealthJob{})
 
-	c := &Controller{}
+	c := &controller.Controller{}
 	r := mux.NewRouter()
 	r.HandleFunc("/consume", c.Consume)
 	r.HandleFunc("/checkuser", c.CheckUser)
@@ -98,6 +92,6 @@ func main() {
 	srv.ListenAndServe()
 
 	defer func() {
-		App.DB.Close()
+		app.Close()
 	}()
 }

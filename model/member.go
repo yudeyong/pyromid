@@ -69,25 +69,6 @@ func NewMember() *Member {
 	return &Member{}
 }
 
-const (
-	//ResOK 返回码
-	ResOK = "200"
-	//ResInvalid 无效参数
-	ResInvalid = "412"
-	//ResPhoneInvalid 无效手机号
-	ResPhoneInvalid = "4121"
-	//ResNotFound 没有对应记录
-	ResNotFound = "404"
-	//ResFound 成功找到
-	ResFound = "200"
-	//ResWrongSQL 查询语句错误
-	ResWrongSQL = "500"
-	//ResFail 异常
-	ResFail = "500"
-	//ResFailCreateMember 创建用户异常
-	ResFailCreateMember = "501"
-)
-
 //FindByPhoneOrCardno 按手机号查找, 找不到时,按卡号查找
 // error code:
 //	ResInvalid  phone,cardno 不能都为空
@@ -142,6 +123,20 @@ func (m *Member) FindByCardno(db *gorm.DB, cardno string) (string, error) {
 	return ResFound, nil
 }
 
+//FindMemberLikeName 按姓名模糊查找
+func FindMemberLikeName(db *gorm.DB, name string) ([]Member, error) {
+	var ms []Member
+	db1 := db.Model(&Member{}).Where("name like ?", "%"+name+"%").Find(&ms)
+	//fmt.Println(ms)
+	if db1.RecordNotFound() {
+		return nil, sql.ErrNoRows
+	}
+	if db1.Error != nil {
+		return nil, db1.Error
+	}
+	return ms, nil
+
+}
 func (m *Member) String() string {
 	p, _ := m.Phone.Value()
 	c, _ := m.CardNo.Value()

@@ -7,6 +7,12 @@ import (
 	gorm "gopkg.in/jinzhu/gorm.v1"
 )
 
+var (
+	//App 开发环境
+	App *AppContext
+)
+
+//Postgres 数据库配置
 type Postgres struct {
 	Host     string
 	Port     int
@@ -16,14 +22,26 @@ type Postgres struct {
 	SSLMode  string
 }
 
+//AppContext 应用实例, 名称,数据库,缓存配置,当前环境(测试,开发,生产)
 type AppContext struct {
-	AppName   string
-	DB        *gorm.DB
-	DevMode   bool
-	postgres  *Postgres
+	AppName  string
+	DB       *gorm.DB
+	DevMode  bool
+	postgres *Postgres
 }
 
-func NewAppContext() *AppContext {
+//Init 初始化
+func Init() *AppContext {
+	App = newAppContext()
+	return App
+}
+
+//Close 资源释放
+func Close() {
+	App.DB.Close()
+}
+
+func newAppContext() *AppContext {
 	app := &AppContext{
 		AppName: goboot.Config.MustString("app.name", "pyramid"),
 		DevMode: goboot.Config.MustBool("mode.dev", true),

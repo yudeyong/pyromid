@@ -1,4 +1,4 @@
-package main
+package controller
 
 import (
 	"encoding/json"
@@ -6,12 +6,19 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	_ "strings"
 
+	"../app"
+	"../model"
 	"github.com/shopspring/decimal"
-
-	"./model"
 )
+
+const (
+	ok = "OK"
+)
+
+//Controller 响应控制器
+type Controller struct {
+}
 
 type msgResp struct {
 	RespCode string `json:"respCode"`
@@ -48,7 +55,7 @@ func (c *Controller) Bind(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, errMsg.messageString(model.ResInvalid, "id or ref不能为空"))
 		return
 	}
-	err := model.BindMemberReference(App.DB, id, ref)
+	err := model.BindMemberReference(app.App.DB, id, ref)
 	if err != nil {
 		fmt.Fprintf(w, errMsg.messageString(model.ResFail, err.Error()))
 		return
@@ -77,12 +84,12 @@ func (c *Controller) history(w http.ResponseWriter, r *http.Request, greaterOrLe
 	str = GetPara(r, "offset")
 	offset, _ := strconv.Atoi(str)
 	//fmt.Println(id, size, offset)
-	history, err := model.TransactionHistoryByID(App.DB, id, size, offset, greaterOrLess)
+	history, err := model.TransactionHistoryByID(app.App.DB, id, size, offset, greaterOrLess)
 	if err != nil {
 		fmt.Fprintf(w, errMsg.messageString(model.ResFail, err.Error()))
 		return
 	}
-	resp := historyResp{model.ResOK, "OK", history}
+	resp := historyResp{model.ResOK, ok, history}
 	fmt.Fprintf(w, JSONString(resp))
 }
 
@@ -108,20 +115,26 @@ type checkAccountResp struct {
 	Points   string `json:"points"`
 }
 
+type membersResp struct {
+	RespCode string         `json:"respCode"`
+	RespMsg  string         `json:"respMsg"`
+	Members  []model.Member `json:"members"`
+}
+
 //CheckAccount 查询积分
 //  id      : memberid
 //  phone  : 消费金额 单位分, 例:120 = 1块2毛
 //  cardno: 是否使用余额,缺省否
+//  name: 姓名,姓名为关键字时,结果可能多个
 //	至少1个不为空
 func (c *Controller) CheckAccount(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm() //解析参数，默认是不会解析的
 	id := GetPara(r, "id")
 	var m *model.Member
 	var err error
-	m = model.NewMember()
 	errMsg := &msgResp{}
 	if len(id) == 0 {
-		// err = m.FindByID(App.DB, id)
+		// err = m.FindByID(app.App.DB, id)
 		// if err != nil {
 		// 	fmt.Fprintf(w, errMsg.messageString(model.ResFail, err.Error()))
 		// 	return
@@ -131,26 +144,42 @@ func (c *Controller) CheckAccount(w http.ResponseWriter, r *http.Request) {
 		//fmt.Println(phone)
 		cardno := GetPara(r, "cardno")
 		if len(phone) == 0 && len(cardno) == 0 {
-			fmt.Fprintf(w, errMsg.messageString(model.ResInvalid, "请输入手机号或卡号或id"))
-			return
+			name := GetPara(r, "name")
+			if len(name) == 0 {
+				fmt.Fprintf(w, errMsg.messageString(model.ResInvalid, "请输入手机号或卡号或id,或姓名"))
+				return
+			} // else {
+			var members []model.Member
+			members, err = model.FindMemberLikeName(app.App.DB, name)
+			if len(members) > 1 {
+				fmt.Fprintf(w, JSONString(membersResp{model.ResMore, "请选择用户", members}))
+				return
+			}
+			if len(members) < 1 {
+				fmt.Fprintf(w, errMsg.messageString(model.ResNotFound, "没有对应用户"))
+				return
+			}
+			id = members[0].ID
+		} else {
+			m = model.NewMember()
+			_, err = m.FindByPhoneOrCardno(app.App.DB, phone, cardno)
+			if err != nil {
+				fmt.Fprintf(w, errMsg.messageString(model.ResFail, err.Error()))
+				return
+			}
+			id = m.ID
 		}
-		_, err = m.FindByPhoneOrCardno(App.DB, phone, cardno)
-		if err != nil {
-			fmt.Fprintf(w, errMsg.messageString(model.ResFail, err.Error()))
-			return
-		}
-		id = m.ID
 	}
 	//assert(m)
 	var d decimal.Decimal
-	d, err = model.GetAmountByMember(App.DB, id)
+	d, err = model.GetAmountByMember(app.App.DB, id)
 	if err != nil {
 		fmt.Fprintf(w, errMsg.messageString(model.ResFail, err.Error()))
 		return
 	}
 	resp := checkAccountResp{}
 	resp.RespCode = model.ResOK
-	resp.RespMsg = "OK"
+	resp.RespMsg = ok
 	resp.Points = d.String()
 	//fmt.Println("ck account:", resp)
 	fmt.Fprintf(w, JSONString(resp))
@@ -176,7 +205,7 @@ func (c *Controller) Consume(w http.ResponseWriter, r *http.Request) {
 	id := GetPara(r, "id")
 	m := model.NewMember()
 	errMsg := &msgResp{}
-	if err := m.FindByID(App.DB, id); err != nil {
+	if err := m.FindByID(app.App.DB, id); err != nil {
 		fmt.Fprintf(w, errMsg.messageString(model.ResFail, err.Error()))
 		return
 	}
@@ -185,7 +214,7 @@ func (c *Controller) Consume(w http.ResponseWriter, r *http.Request) {
 	amount := GetPara(r, "amount")
 	order := GetPara(r, "orderno")
 	//fmt.Println("consume:", id, amount, usePoint)
-	result, err := model.Consume(App.DB, m, amount, usePoint, order)
+	result, err := model.Consume(app.App.DB, m, amount, usePoint, order)
 	if err != nil {
 		fmt.Fprintf(w, errMsg.messageString(model.ResFail, err.Error()))
 	} else {
@@ -228,7 +257,7 @@ func (r *userResp) CopyMemberInfo(m *model.Member) {
 //  phone     : 用户手机号
 //  cardno    : 用户卡号,与手机号,至少一个非空. 不存在时, 创建新用户, 及其推荐返利关系树
 //  reference : 推荐人,识别为11位手机号,按手机号,否则按卡号查询; 老用户无效
-//  Name      : 用户名,老用户无效
+//  name      : 用户名,老用户无效
 func (c *Controller) CheckUser(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm() //解析参数，默认是不会解析的
 	//  map :=
@@ -237,13 +266,13 @@ func (c *Controller) CheckUser(w http.ResponseWriter, r *http.Request) {
 	//fmt.Println(phone)
 	cardno := GetPara(r, "cardno")
 	m := model.NewMember()
-	code, err := m.FindByPhoneOrCardno(App.DB, phone, cardno)
+	code, err := m.FindByPhoneOrCardno(app.App.DB, phone, cardno)
 	//fmt.Println(err,code)
 	switch code {
 	case model.ResNotFound: //需建新用户
 		name := GetPara(r, "name")
 		reference := GetPara(r, "reference")
-		m = model.AddNewMember(App.DB, phone, cardno, reference, "", name)
+		m = model.AddNewMember(app.App.DB, phone, cardno, reference, "", name)
 		if m == nil {
 			err = errors.New("用户创建失败" + phone)
 			code = model.ResFailCreateMember
@@ -253,7 +282,7 @@ func (c *Controller) CheckUser(w http.ResponseWriter, r *http.Request) {
 			resp.CopyMemberInfo(m)
 		}
 	case model.ResFound: //老用户
-		i, err1 := model.GetAmountByMember(App.DB, m.ID)
+		i, err1 := model.GetAmountByMember(app.App.DB, m.ID)
 		if err1 != nil {
 			code = model.ResFail
 		} else {
@@ -267,5 +296,63 @@ func (c *Controller) CheckUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	resp.RespCode = code
+	fmt.Fprintf(w, JSONString(resp))
+}
+
+//Members 查找用户列表
+//  id      : memberid
+//  phone  : 消费金额 单位分, 例:120 = 1块2毛
+//  cardno: 是否使用余额,缺省否
+//  name: 姓名,姓名为关键字时,结果可能多个
+//	至少1个不为空
+func (c *Controller) Members(w http.ResponseWriter, r *http.Request) {
+	r.ParseForm() //解析参数，默认是不会解析的
+	id := GetPara(r, "id")
+	var m *model.Member
+	var err error
+	m = model.NewMember()
+	errMsg := &msgResp{}
+	if len(id) == 0 {
+		// err = m.FindByID(app.App.DB, id)
+		// if err != nil {
+		// 	fmt.Fprintf(w, errMsg.messageString(model.ResFail, err.Error()))
+		// 	return
+		// }
+		//} else {
+		phone := GetPara(r, "phone")
+		//fmt.Println(phone)
+		cardno := GetPara(r, "cardno")
+		if len(phone) == 0 && len(cardno) == 0 {
+			name := GetPara(r, "name")
+			if len(name) == 0 {
+				fmt.Fprintf(w, errMsg.messageString(model.ResInvalid, "请输入手机号或卡号或id,或姓名"))
+				return
+			} else {
+				var members []model.Member
+				members, err = model.FindMemberLikeName(app.App.DB, name)
+
+				fmt.Fprintf(w, JSONString(membersResp{model.ResOK, ok, members}))
+			}
+		} else {
+			_, err = m.FindByPhoneOrCardno(app.App.DB, phone, cardno)
+			if err != nil {
+				fmt.Fprintf(w, errMsg.messageString(model.ResFail, err.Error()))
+				return
+			}
+		}
+		id = m.ID
+	}
+	//assert(m)
+	var d decimal.Decimal
+	d, err = model.GetAmountByMember(app.App.DB, id)
+	if err != nil {
+		fmt.Fprintf(w, errMsg.messageString(model.ResFail, err.Error()))
+		return
+	}
+	resp := checkAccountResp{}
+	resp.RespCode = model.ResOK
+	resp.RespMsg = ok
+	resp.Points = d.String()
+	//fmt.Println("ck account:", resp)
 	fmt.Fprintf(w, JSONString(resp))
 }
