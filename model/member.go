@@ -217,3 +217,59 @@ func (m *Member) fillNewMember(phone string, cardno string, reference string, le
 	m.CreateTime = time.Now()
 	return m, nil
 }
+
+//SearchMembersByInfo 搜索用户,根据
+//	phone,cardno or name
+//	返回 member list, msg code, msg
+func SearchMembersByInfo(db *gorm.DB, phone string, cardno string, name string) ([]Member, string, string) {
+	var m *Member
+	var err error
+	m = NewMember()
+	var members []Member
+	if len(phone) == 0 && len(cardno) == 0 {
+		if len(name) == 0 {
+			return nil, ResInvalid, ""
+		} // else {
+		members, err = FindMemberLikeName(db, name)
+		if err != nil {
+			return nil, ResFail, err.Error()
+		}
+		if len(members) > 1 {
+			return members, ResMore, ""
+		}
+		if len(members) < 1 {
+			return nil, ResNotFound, ""
+		}
+		return members, "", ""
+		//}
+	}
+	_, err = m.FindByPhoneOrCardno(db, phone, cardno)
+	if err != nil {
+		return nil, ResFail, err.Error()
+	}
+	members = append(members, *m)
+	return members, "", ""
+}
+
+//SearchMembers 搜索member根据
+//	id, phone, cardno or name
+//	id 优先
+//	返回 member list, msg code, msg
+func SearchMembers(db *gorm.DB, id string, phone string, cardno string, name string) ([]Member, string, string) {
+	if len(id) == 0 {
+		// err = m.FindByID(app.App.DB, id)
+		// if err != nil {
+		// 	fmt.Fprintf(w, errMsg.messageString(model.ResFail, err.Error()))
+		// 	return
+		// }
+		//} else {
+		return SearchMembersByInfo(db, phone, cardno, name)
+	}
+
+	m := NewMember()
+	err := m.FindByID(db, id)
+	if err != nil {
+		return nil, ResFail, err.Error()
+	}
+	return []Member{*m}, "", ""
+}

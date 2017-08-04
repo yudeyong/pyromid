@@ -9,7 +9,6 @@ import (
 
 	"../app"
 	"../model"
-	"github.com/shopspring/decimal"
 )
 
 const (
@@ -130,9 +129,6 @@ type membersResp struct {
 func (c *Controller) CheckAccount(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm() //解析参数，默认是不会解析的
 	id := GetPara(r, "id")
-	var m *model.Member
-	var err error
-	errMsg := &msgResp{}
 	if len(id) == 0 {
 		// err = m.FindByID(app.App.DB, id)
 		// if err != nil {
@@ -143,36 +139,23 @@ func (c *Controller) CheckAccount(w http.ResponseWriter, r *http.Request) {
 		phone := GetPara(r, "phone")
 		//fmt.Println(phone)
 		cardno := GetPara(r, "cardno")
-		if len(phone) == 0 && len(cardno) == 0 {
-			name := GetPara(r, "name")
-			if len(name) == 0 {
-				fmt.Fprintf(w, errMsg.messageString(model.ResInvalid, "请输入手机号或卡号或id,或姓名"))
-				return
-			} // else {
-			var members []model.Member
-			members, err = model.FindMemberLikeName(app.App.DB, name)
-			if len(members) > 1 {
-				fmt.Fprintf(w, JSONString(membersResp{model.ResMore, "请选择用户", members}))
+		name := GetPara(r, "name")
+		members, code, msg := model.SearchMembersByInfo(app.App.DB, phone, cardno, name)
+		if len(code) > 0 {
+			if code != model.ResMore { //err
+				fmt.Fprintf(w, JSONString(fillMemberMessageByCode(code, msg)))
 				return
 			}
-			if len(members) < 1 {
-				fmt.Fprintf(w, errMsg.messageString(model.ResNotFound, "没有对应用户"))
-				return
-			}
-			id = members[0].ID
-		} else {
-			m = model.NewMember()
-			_, err = m.FindByPhoneOrCardno(app.App.DB, phone, cardno)
-			if err != nil {
-				fmt.Fprintf(w, errMsg.messageString(model.ResFail, err.Error()))
-				return
-			}
-			id = m.ID
+			//else 多个用户结果
+			fmt.Fprintf(w, JSONString(membersResp{model.ResMore, "请选择用户", members}))
+			return
 		}
+		id = members[0].ID
 	}
 	//assert(m)
-	var d decimal.Decimal
-	d, err = model.GetAmountByMember(app.App.DB, id)
+	//var d decimal.Decimal
+	d, err := model.GetAmountByMember(app.App.DB, id)
+	errMsg := &msgResp{}
 	if err != nil {
 		fmt.Fprintf(w, errMsg.messageString(model.ResFail, err.Error()))
 		return
@@ -308,51 +291,37 @@ func (c *Controller) CheckUser(w http.ResponseWriter, r *http.Request) {
 func (c *Controller) Members(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm() //解析参数，默认是不会解析的
 	id := GetPara(r, "id")
-	var m *model.Member
-	var err error
-	m = model.NewMember()
-	errMsg := &msgResp{}
-	if len(id) == 0 {
-		// err = m.FindByID(app.App.DB, id)
-		// if err != nil {
-		// 	fmt.Fprintf(w, errMsg.messageString(model.ResFail, err.Error()))
-		// 	return
-		// }
-		//} else {
-		phone := GetPara(r, "phone")
-		//fmt.Println(phone)
-		cardno := GetPara(r, "cardno")
-		if len(phone) == 0 && len(cardno) == 0 {
-			name := GetPara(r, "name")
-			if len(name) == 0 {
-				fmt.Fprintf(w, errMsg.messageString(model.ResInvalid, "请输入手机号或卡号或id,或姓名"))
-				return
-			} else {
-				var members []model.Member
-				members, err = model.FindMemberLikeName(app.App.DB, name)
+	phone := GetPara(r, "phone")
+	//fmt.Println(phone)
+	cardno := GetPara(r, "cardno")
+	name := GetPara(r, "name")
 
-				fmt.Fprintf(w, JSONString(membersResp{model.ResOK, ok, members}))
-			}
+	members, code, msg := model.SearchMembers(app.App.DB, id, phone, cardno, name)
+
+	if len(code) > 0 {
+		fmt.Fprintf(w, JSONString(fillMemberMessageByCode(code, msg)))
+	}
+	fmt.Fprintf(w, JSONString(membersResp{model.ResMore, "请选择用户", members}))
+}
+
+func fillMemberMessageByCode(code string, msg string) *msgResp {
+	m := msgResp{RespCode: code}
+	switch code {
+	case model.ResInvalid:
+		m.RespMsg = "请输入手机号或卡号或id,或姓名"
+	case model.ResMore:
+		m.RespMsg = "请选择用户"
+		m.RespCode = model.ResOK
+	case model.ResNotFound:
+		m.RespMsg = "没有对应用户"
+	case model.ResFail:
+		m.RespMsg = msg
+	default:
+		if len(msg) == 0 {
+			m.RespMsg = "未知错误"
 		} else {
-			_, err = m.FindByPhoneOrCardno(app.App.DB, phone, cardno)
-			if err != nil {
-				fmt.Fprintf(w, errMsg.messageString(model.ResFail, err.Error()))
-				return
-			}
+			m.RespMsg = msg
 		}
-		id = m.ID
 	}
-	//assert(m)
-	var d decimal.Decimal
-	d, err = model.GetAmountByMember(app.App.DB, id)
-	if err != nil {
-		fmt.Fprintf(w, errMsg.messageString(model.ResFail, err.Error()))
-		return
-	}
-	resp := checkAccountResp{}
-	resp.RespCode = model.ResOK
-	resp.RespMsg = ok
-	resp.Points = d.String()
-	//fmt.Println("ck account:", resp)
-	fmt.Fprintf(w, JSONString(resp))
+	return &m
 }
