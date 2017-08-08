@@ -162,25 +162,34 @@ func (m *Member) FindByInfo(db *gorm.DB, reference string) (string, error) {
 }
 
 //AddNewMember 查找推荐用户,添加新用户
-func AddNewMember(db *gorm.DB, phone string, cardno string, reference string, level string, name string) *Member {
+//	name, phone, cardno, refname, refphone, refcardno, refID, level string
+//	return
+//		*Member,Member[], code, err message
+func AddNewMember(db *gorm.DB, name, phone, cardno, refname, refphone, refcardno, refID, level string) (*Member, []Member, string, string) {
 	ref := NewMember()
-	var referenceID string
-
-	if len(reference) > 0 {
-		_, err := ref.FindByInfo(db, reference)
-		if err == nil {
-			referenceID = ref.ID
+	if len(refID) > 0 {
+		if len(refphone) != 0 || len(refcardno) != 0 || len(refname) != 0 {
+			members, _, _ := SearchMembersByInfo(db, refphone, refcardno, refname)
+			if members == nil {
+				// errstr = "介绍用户没找到"
+				// code = model.ResNotFound
+				return nil, nil, ResNotFound, "介绍用户没找到"
+			}
+			if len(members) > 1 {
+				return nil, members, ResMore1, "请选择引荐用户"
+			}
+			refID = members[0].ID
 		}
 	}
-	if err := ref.CreateMember(db, phone, cardno, referenceID, level, name); err != nil {
+	if err := ref.createMember(db, phone, cardno, refID, level, name); err != nil {
 		log.Println(err, phone, cardno)
-		return nil
+		return nil, nil, ResFailCreateMember, "用户创建失败," + phone + err.Error()
 	}
-	return ref
+	return ref, nil, "", ""
 }
 
-//CreateMember 简单创建用户
-func (m *Member) CreateMember(db *gorm.DB, phone string, cardno string, reference string, level string, name string) error {
+//createMember 简单创建用户
+func (m *Member) createMember(db *gorm.DB, phone string, cardno string, reference string, level string, name string) error {
 	m.fillNewMember(phone, cardno, reference, level, name)
 	db.Create(m)
 	if db.NewRecord(m) {
@@ -247,8 +256,7 @@ func SearchMembersByInfo(db *gorm.DB, phone string, cardno string, name string) 
 	if err != nil {
 		return nil, ResFail, err.Error()
 	}
-	members = append(members, *m)
-	return members, "", ""
+	return []Member{*m}, "", ""
 }
 
 //SearchMembers 搜索member根据

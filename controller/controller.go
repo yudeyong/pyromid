@@ -2,7 +2,6 @@ package controller
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -239,43 +238,62 @@ func (r *userResp) CopyMemberInfo(m *model.Member) {
 //CheckUser 检查用户
 //  phone     : 用户手机号
 //  cardno    : 用户卡号,与手机号,至少一个非空. 不存在时, 创建新用户, 及其推荐返利关系树
-//  reference : 推荐人,识别为11位手机号,按手机号,否则按卡号查询; 老用户无效
 //  name      : 用户名,老用户无效
+//  refphone : 推荐人,识别为11位手机号 老用户无效
+//  refcardno : 推荐人,卡号查询; 老用户无效
+//  refname : 推荐人,姓名; 老用户无效(前两个为空,才使用)
+//	refID	:	推荐人id,优先使用
+//	return :
+//		code = "200" 成功
+//		code = "300" 推荐用户需要从多人中选择
+//		code = "404" 引荐用户没找到
+//		code = "412" 参数不足
+//		code = "500" 内部错误
+//		code = "501" 新用户创建失败
+//
 func (c *Controller) CheckUser(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm() //解析参数，默认是不会解析的
 	//  map :=
 	resp := userResp{Amount: "0"}
 	phone := GetPara(r, "phone")
-	//fmt.Println(phone)
 	cardno := GetPara(r, "cardno")
-	m := model.NewMember()
-	code, err := m.FindByPhoneOrCardno(app.App.DB, phone, cardno)
-	//fmt.Println(err,code)
-	switch code {
-	case model.ResNotFound: //需建新用户
-		name := GetPara(r, "name")
-		reference := GetPara(r, "reference")
-		m = model.AddNewMember(app.App.DB, phone, cardno, reference, "", name)
-		if m == nil {
-			err = errors.New("用户创建失败" + phone)
-			code = model.ResFailCreateMember
-		} else {
-			err = nil
-			code = model.ResOK
-			resp.CopyMemberInfo(m)
+	name := GetPara(r, "name")
+	var m *model.Member
+	members, code, errstr := model.SearchMembersByInfo(app.App.DB, phone, cardno, name)
+	l := len(members)
+	fmt.Println(errstr, code, l)
+	if l == 0 {
+		//case model.ResNotFound: //需建新用户
+		refID := GetPara(r, "refid")
+		refphone := GetPara(r, "refphone")
+		refcardno := GetPara(r, "refcardno")
+		refname := GetPara(r, "refname")
+		m, members, code, errstr = model.AddNewMember(app.App.DB, name, phone, cardno, refname, refphone, refcardno, refID, "")
+		if code == model.ResMore1 {
+			fmt.Fprintf(w, JSONString(membersResp{model.ResMore, "请选择引荐用户", members}))
+			return
 		}
-	case model.ResFound: //老用户
+		resp.CopyMemberInfo(m)
+		code = model.ResOK
+		errstr = "创建成功"
+	} else if l == 1 {
+		//case model.ResFound: //老用户
 		i, err1 := model.GetAmountByMember(app.App.DB, m.ID)
 		if err1 != nil {
 			code = model.ResFail
+			errstr = err1.Error()
 		} else {
 			resp.Amount = i.String()
 			resp.CopyMemberInfo(m)
 		}
+	} else //l>1
+	{
+		fmt.Fprintf(w, JSONString(membersResp{model.ResMore, "请选择用户", members}))
+		return
 	}
-	if err != nil { //其他错误
+	if len(errstr) > 0 { //其他错误
 		errMsg := &msgResp{}
-		fmt.Fprintf(w, errMsg.messageString(code, err.Error()))
+		fmt.Fprintf(w, errMsg.messageString(code, errstr))
 		return
 	}
 	resp.RespCode = code
@@ -300,6 +318,7 @@ func (c *Controller) Members(w http.ResponseWriter, r *http.Request) {
 
 	if len(code) > 0 {
 		fmt.Fprintf(w, JSONString(fillMemberMessageByCode(code, msg)))
+		return
 	}
 	fmt.Fprintf(w, JSONString(membersResp{model.ResMore, "请选择用户", members}))
 }

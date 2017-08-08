@@ -10,6 +10,8 @@ const (
 	ResOK = "200"
 	//ResMore 进一步操作
 	ResMore = "300"
+	//ResMore1 另一种进一步操作
+	ResMore1 = "301"
 	//ResInvalid 无效参数
 	ResInvalid = "412"
 	//ResPhoneInvalid 无效手机号
