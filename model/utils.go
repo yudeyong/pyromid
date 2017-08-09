@@ -1,6 +1,8 @@
 package model
 
 import (
+	"database/sql"
+
 	"github.com/shopspring/decimal"
 	gorm "gopkg.in/jinzhu/gorm.v1"
 )
@@ -8,6 +10,8 @@ import (
 const (
 	//ResOK 返回码
 	ResOK = "200"
+	//数据重复
+	ResDup = "201"
 	//ResMore 进一步操作
 	ResMore = "300"
 	//ResMore1 另一种进一步操作
@@ -28,8 +32,17 @@ const (
 	ResFailCreateMember = "501"
 )
 
+//Init 初始化 分级分成比例
 func Init(db *gorm.DB, ratios *([]decimal.Decimal)) {
 	InitLevelRatios(ratios)
 	InitCardNo(db)
 
+}
+
+//NullStringEquals NullString与string比较
+func NullStringEquals(s sql.NullString, str string) bool {
+	if !s.Valid {
+		return false
+	}
+	return str == s.String
 }

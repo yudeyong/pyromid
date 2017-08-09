@@ -20,6 +20,8 @@ const (
 	LevelRatioString = "level%dratio"
 	//LevelRatioSQL 各级对应sql查询语句
 	LevelRatioSQL = "level%ratio"
+
+	Address = "http://localhost:9000/"
 )
 
 //InitLevels 初始化各级回扣比例

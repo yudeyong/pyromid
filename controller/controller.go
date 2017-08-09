@@ -235,6 +235,34 @@ func (r *userResp) CopyMemberInfo(m *model.Member) {
 	r.Phone = m.Phone.String
 }
 
+//AddUser 添加用户
+//  phone     : 用户手机号
+//  cardno    : 用户卡号,与手机号,至少一个非空. 不存在时, 创建新用户, 及其推荐返利关系树
+//  name      : 用户名,老用户无效
+//  refphone : 推荐人,识别为11位手机号 老用户无效
+//  refcardno : 推荐人,卡号查询; 老用户无效
+//  refname : 推荐人,姓名; 老用户无效(前两个为空,才使用)
+//	refID	:	推荐人id,优先使用
+//	return :
+//		code = "200" 成功
+//		code = "201" 用户已存在
+//		code = "300" 推荐用户需要从多人中选择
+//		code = "404" 引荐用户没找到
+//		code = "412" 参数不足
+//		code = "500" 内部错误
+//		code = "501" 新用户创建失败
+//
+func (c *Controller) AddUser(w http.ResponseWriter, r *http.Request) {
+	members, code := newUser(w, r)
+	if code == model.ResDup {
+		msg := userResp{}
+		msg.CopyMemberInfo(&members[0])
+		msg.RespCode = code
+		msg.RespMsg = "用户已经存在"
+		fmt.Fprintf(w, JSONString(msg))
+	}
+}
+
 //CheckUser 检查用户
 //  phone     : 用户手机号
 //  cardno    : 用户卡号,与手机号,至少一个非空. 不存在时, 创建新用户, 及其推荐返利关系树
@@ -252,52 +280,24 @@ func (r *userResp) CopyMemberInfo(m *model.Member) {
 //		code = "501" 新用户创建失败
 //
 func (c *Controller) CheckUser(w http.ResponseWriter, r *http.Request) {
-	r.ParseForm() //解析参数，默认是不会解析的
-	//  map :=
-	resp := userResp{Amount: "0"}
-	phone := GetPara(r, "phone")
-	cardno := GetPara(r, "cardno")
-	name := GetPara(r, "name")
-	var m *model.Member
-	members, code, errstr := model.SearchMembersByInfo(app.App.DB, phone, cardno, name)
+	members, code := newUser(w, r)
 	l := len(members)
-	fmt.Println(errstr, code, l)
-	if l == 0 {
-		//case model.ResNotFound: //需建新用户
-		refID := GetPara(r, "refid")
-		refphone := GetPara(r, "refphone")
-		refcardno := GetPara(r, "refcardno")
-		refname := GetPara(r, "refname")
-		m, members, code, errstr = model.AddNewMember(app.App.DB, name, phone, cardno, refname, refphone, refcardno, refID, "")
-		if code == model.ResMore1 {
-			fmt.Fprintf(w, JSONString(membersResp{model.ResMore, "请选择引荐用户", members}))
-			return
-		}
-		resp.CopyMemberInfo(m)
-		code = model.ResOK
-		errstr = "创建成功"
-	} else if l == 1 {
+	fmt.Println(code, l)
+	if code == model.ResDup {
 		//case model.ResFound: //老用户
-		i, err1 := model.GetAmountByMember(app.App.DB, m.ID)
+		i, err1 := model.GetAmountByMember(app.App.DB, members[0].ID)
 		if err1 != nil {
 			code = model.ResFail
-			errstr = err1.Error()
-		} else {
-			resp.Amount = i.String()
-			resp.CopyMemberInfo(m)
+			fmt.Fprintf(w, (&(msgResp{})).messageString(code, err1.Error()))
+			return
 		}
-	} else //l>1
-	{
-		fmt.Fprintf(w, JSONString(membersResp{model.ResMore, "请选择用户", members}))
-		return
-	}
-	if len(errstr) > 0 { //其他错误
-		errMsg := &msgResp{}
-		fmt.Fprintf(w, errMsg.messageString(code, errstr))
-		return
-	}
-	resp.RespCode = code
-	fmt.Fprintf(w, JSONString(resp))
+		resp := userResp{}
+		resp.Amount = i.String()
+		resp.CopyMemberInfo(&members[0])
+
+		resp.RespCode = code
+		fmt.Fprintf(w, JSONString(resp))
+	} //else 其他情况已返回
 }
 
 //Members 查找用户列表
@@ -343,4 +343,47 @@ func fillMemberMessageByCode(code string, msg string) *msgResp {
 		}
 	}
 	return &m
+}
+
+//返回码,详见AddUser
+func newUser(w http.ResponseWriter, r *http.Request) (members []model.Member, code string) {
+	r.ParseForm() //解析参数，默认是不会解析的
+	//  map :=
+	resp := userResp{Amount: "0"}
+	phone := GetPara(r, "phone")
+	cardno := GetPara(r, "cardno")
+	name := GetPara(r, "name")
+	refID := GetPara(r, "refid")
+	refphone := GetPara(r, "refphone")
+	refcardno := GetPara(r, "refcardno")
+	refname := GetPara(r, "refname")
+	var m *model.Member
+	//var members []model.Member
+	var errstr string
+	members, _, _ = model.SearchMembersByInfo(app.App.DB, phone, cardno, name)
+	//fmt.Println("search result", members)
+	if len(members) > 0 {
+		for _, mem := range members {
+			if model.NullStringEquals(mem.Phone, phone) || model.NullStringEquals(mem.CardNo, cardno) {
+				code = model.ResDup
+				//不输出结果, 其他方法需要自定义此场景下的返回//fmt.Fprintf(w, JSONString(msgResp{code, "用户已经存在"}))
+				return
+			}
+		}
+	}
+	m, members, code, errstr = model.AddNewMember(app.App.DB, name, phone, cardno, refname, refphone, refcardno, refID, "")
+	//fmt.Println(len(members), code, errstr, m)
+	if code == model.ResMore1 {
+		fmt.Fprintf(w, JSONString(membersResp{code, "请选择引荐用户", members}))
+		return
+	}
+	if m == nil {
+		fmt.Fprintf(w, JSONString(msgResp{code, errstr}))
+		return
+	}
+	resp.CopyMemberInfo(m)
+	resp.RespCode = code
+	fmt.Fprintf(w, JSONString(resp))
+	members = []model.Member{*m}
+	return
 }

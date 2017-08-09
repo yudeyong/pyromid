@@ -52,7 +52,7 @@ func BindMemberReference(db *gorm.DB, mid string, ref string) error {
 	if err = r.FindByID(db, ref); err != nil {
 		return err
 	}
-	fmt.Println(m, r)
+	//fmt.Println(m, r)
 	m.Reference.Scan(r.ID)
 	db.Save(m)
 	return nil
@@ -81,6 +81,7 @@ func (m *Member) FindByPhoneOrCardno(db *gorm.DB, phone string, cardno string) (
 	}
 	if len(phone) != 0 {
 		code, err := m.FindByPhone(db, phone)
+		//fmt.Println("find phone", code, err, phone, m)
 		if err != nil {
 			return code, err
 		}
@@ -151,7 +152,7 @@ func (m *Member) FindByInfo(db *gorm.DB, reference string) (string, error) {
 	}
 	if ValidatePhone(reference) {
 		code, err := m.FindByPhone(db, reference)
-		fmt.Println("ref:", reference, err, code)
+		//fmt.Println("ref:", reference, err, code)
 		if err != nil {
 			return code, err
 		}
@@ -166,10 +167,15 @@ func (m *Member) FindByInfo(db *gorm.DB, reference string) (string, error) {
 //	return
 //		*Member,Member[], code, err message
 func AddNewMember(db *gorm.DB, name, phone, cardno, refname, refphone, refcardno, refID, level string) (*Member, []Member, string, string) {
+	fmt.Println(name, ";", phone, ";", cardno, ";", refname, ";", refphone, ";", refcardno, ";", refID, ";", level)
+	if len(phone) == 0 && len(cardno) == 0 {
+		return nil, nil, ResInvalid, "请提供会员数据"
+	}
 	ref := NewMember()
-	if len(refID) > 0 {
+	if len(refID) == 0 {
 		if len(refphone) != 0 || len(refcardno) != 0 || len(refname) != 0 {
 			members, _, _ := SearchMembersByInfo(db, refphone, refcardno, refname)
+			//fmt.Println("ref search rsult:", members)
 			if members == nil {
 				// errstr = "介绍用户没找到"
 				// code = model.ResNotFound
@@ -185,7 +191,7 @@ func AddNewMember(db *gorm.DB, name, phone, cardno, refname, refphone, refcardno
 		log.Println(err, phone, cardno)
 		return nil, nil, ResFailCreateMember, "用户创建失败," + phone + err.Error()
 	}
-	return ref, nil, "", ""
+	return ref, nil, ResOK, ""
 }
 
 //createMember 简单创建用户
@@ -252,11 +258,12 @@ func SearchMembersByInfo(db *gorm.DB, phone string, cardno string, name string) 
 		return members, "", ""
 		//}
 	}
-	_, err = m.FindByPhoneOrCardno(db, phone, cardno)
+	var code string
+	code, err = m.FindByPhoneOrCardno(db, phone, cardno)
 	if err != nil {
-		return nil, ResFail, err.Error()
+		return nil, code, err.Error()
 	}
-	return []Member{*m}, "", ""
+	return []Member{*m}, code, ""
 }
 
 //SearchMembers 搜索member根据
