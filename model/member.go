@@ -255,7 +255,7 @@ func SearchMembersByInfo(db *gorm.DB, phone string, cardno string, name string) 
 		if len(members) < 1 {
 			return nil, ResNotFound, ""
 		}
-		return members, "", ""
+		return members, ResFound, ""
 		//}
 	}
 	var code string
@@ -286,5 +286,5 @@ func SearchMembers(db *gorm.DB, id string, phone string, cardno string, name str
 	if err != nil {
 		return nil, ResFail, err.Error()
 	}
-	return []Member{*m}, "", ""
+	return []Member{*m}, ResFound, ""
 }

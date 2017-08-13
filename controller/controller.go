@@ -153,7 +153,7 @@ func (c *Controller) CheckAccount(w http.ResponseWriter, r *http.Request) {
 	}
 	//assert(m)
 	//var d decimal.Decimal
-	d, err := model.GetAmountByMember(app.App.DB, id)
+	d, err := model.GetAmountByMember(app.App.DB, id, true)
 	errMsg := &msgResp{}
 	if err != nil {
 		fmt.Fprintf(w, errMsg.messageString(model.ResFail, err.Error()))
@@ -213,12 +213,19 @@ func (c *Controller) Consume(w http.ResponseWriter, r *http.Request) {
 }
 
 type userResp struct {
-	RespCode string `json:"respCode"`
-	RespMsg  string `json:"respMsg"`
-	MemberID string `json:"id"`
-	Amount   string `json:"amount"`
-	Name     string `json:"name"`
-	Phone    string `json:"phone"`
+	RespCode  string `json:"respCode"`
+	RespMsg   string `json:"respMsg"`
+	MemberID  string `json:"id"`
+	Name      string `json:"name"`
+	Phone     string `json:"phone"`
+	CardNo    string `json:"cardNo"`
+	RefID     string `json:"refID"`
+	RefPhone  string `json:"refPhone"`
+	RefName   string `json:"refName"`
+	RefCardNo string `json:"refCardNo"`
+	Amount    string `json:"amount"`
+	Total     string `json:"total"`
+	Time      string `json:"time"`
 }
 
 //JSONString output jason object
@@ -229,10 +236,27 @@ func JSONString(r interface{}) string {
 	}
 	return string(jb)
 }
-func (r *userResp) CopyMemberInfo(m *model.Member) {
+func (r *userResp) CopyMemberInfo(m *model.Member, withAccount bool) {
 	r.MemberID = m.ID
 	r.Name = m.Name.String
 	r.Phone = m.Phone.String
+	r.CardNo = m.CardNo.String
+	r.Time = m.CreateTime.Format("2006-01-02 15:04")
+	if m.Reference.Valid {
+		ref := model.NewMember()
+		if err := ref.FindByID(app.App.DB, m.Reference.String); err == nil {
+			r.RefID = ref.ID
+			r.RefName = ref.Name.String
+			r.RefPhone = ref.Phone.String
+			r.RefCardNo = ref.CardNo.String
+		}
+	}
+	if withAccount {
+		a, _ := model.GetAmountByMember(app.App.DB, m.ID, true)
+		t, _ := model.GetAmountByMember(app.App.DB, m.ID, false)
+		r.Amount = a.String()
+		r.Total = t.Add(a).String()
+	}
 }
 
 //AddUser 添加用户
@@ -255,10 +279,8 @@ func (r *userResp) CopyMemberInfo(m *model.Member) {
 func (c *Controller) AddUser(w http.ResponseWriter, r *http.Request) {
 	members, code := newUser(w, r)
 	if code == model.ResDup {
-		msg := userResp{}
-		msg.CopyMemberInfo(&members[0])
-		msg.RespCode = code
-		msg.RespMsg = "用户已经存在"
+		msg := userResp{RespCode: code, RespMsg: "用户已经存在"}
+		msg.CopyMemberInfo(&members[0], false)
 		fmt.Fprintf(w, JSONString(msg))
 	}
 }
@@ -281,11 +303,11 @@ func (c *Controller) AddUser(w http.ResponseWriter, r *http.Request) {
 //
 func (c *Controller) CheckUser(w http.ResponseWriter, r *http.Request) {
 	members, code := newUser(w, r)
-	l := len(members)
-	fmt.Println(code, l)
+	//l := len(members)
+	//fmt.Println(code, l)
 	if code == model.ResDup {
 		//case model.ResFound: //老用户
-		i, err1 := model.GetAmountByMember(app.App.DB, members[0].ID)
+		i, err1 := model.GetAmountByMember(app.App.DB, members[0].ID, true)
 		if err1 != nil {
 			code = model.ResFail
 			fmt.Fprintf(w, (&(msgResp{})).messageString(code, err1.Error()))
@@ -293,7 +315,7 @@ func (c *Controller) CheckUser(w http.ResponseWriter, r *http.Request) {
 		}
 		resp := userResp{}
 		resp.Amount = i.String()
-		resp.CopyMemberInfo(&members[0])
+		resp.CopyMemberInfo(&members[0], true)
 
 		resp.RespCode = code
 		fmt.Fprintf(w, JSONString(resp))
@@ -315,12 +337,18 @@ func (c *Controller) Members(w http.ResponseWriter, r *http.Request) {
 	name := GetPara(r, "name")
 
 	members, code, msg := model.SearchMembers(app.App.DB, id, phone, cardno, name)
-
-	if len(code) > 0 {
-		fmt.Fprintf(w, JSONString(fillMemberMessageByCode(code, msg)))
+	//fmt.Println(code, msg, members)
+	if code == model.ResMore {
+		fmt.Fprintf(w, JSONString(membersResp{model.ResMore, "请选择用户", members}))
 		return
 	}
-	fmt.Fprintf(w, JSONString(membersResp{model.ResMore, "请选择用户", members}))
+	if code == model.ResFound {
+		u := userResp{RespCode: model.ResFound, RespMsg: msg}
+		u.CopyMemberInfo(&members[0], true)
+		fmt.Fprintf(w, JSONString(u))
+		return
+	}
+	fmt.Fprintf(w, JSONString(fillMemberMessageByCode(code, msg)))
 }
 
 func fillMemberMessageByCode(code string, msg string) *msgResp {
@@ -335,9 +363,12 @@ func fillMemberMessageByCode(code string, msg string) *msgResp {
 		m.RespMsg = "没有对应用户"
 	case model.ResFail:
 		m.RespMsg = msg
+	case model.ResFound:
+		m.RespMsg = "OK"
 	default:
 		if len(msg) == 0 {
-			m.RespMsg = "未知错误"
+			m.RespMsg = "未知错误" + code
+			panic(m.RespMsg)
 		} else {
 			m.RespMsg = msg
 		}
@@ -381,7 +412,7 @@ func newUser(w http.ResponseWriter, r *http.Request) (members []model.Member, co
 		fmt.Fprintf(w, JSONString(msgResp{code, errstr}))
 		return
 	}
-	resp.CopyMemberInfo(m)
+	resp.CopyMemberInfo(m, false)
 	resp.RespCode = code
 	fmt.Fprintf(w, JSONString(resp))
 	members = []model.Member{*m}

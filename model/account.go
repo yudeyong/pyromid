@@ -50,10 +50,17 @@ func NewAccount() *AccountPoint {
 }
 
 //GetAmountByMember 获取有效账户余额 by member //todo
-func GetAmountByMember(db *gorm.DB, mid string) (decimal.Decimal, error) {
+// valid: true 有效期内; false 未到有效期的,不含过期的
+func GetAmountByMember(db *gorm.DB, mid string, valid bool) (decimal.Decimal, error) {
 	a := AccountPoint{}
 	zero := decimal.New(0, 0)
-	db1 := db.Table("accounts").Select("member_id,sum(amount) as sumamount").Where("current_date >= startdate and ((current_date<=expiredate) or (expiredate is null)) and amount>0 and member_id=?", mid).Group("member_id").First(&a)
+	var sql string
+	if valid {
+		sql = ">="
+	} else {
+		sql = "<"
+	}
+	db1 := db.Table("accounts").Select("member_id,sum(amount) as sumamount").Where("current_date "+sql+" startdate and ((current_date<=expiredate) or (expiredate is null)) and amount>0 and member_id=?", mid).Group("member_id").First(&a)
 	if db1.RecordNotFound() {
 		return zero, nil
 	}
