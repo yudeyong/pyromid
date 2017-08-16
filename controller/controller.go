@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -114,9 +115,9 @@ type checkAccountResp struct {
 }
 
 type membersResp struct {
-	RespCode string         `json:"respCode"`
-	RespMsg  string         `json:"respMsg"`
-	Members  []model.Member `json:"members"`
+	RespCode string               `json:"respCode"`
+	RespMsg  string               `json:"respMsg"`
+	Members  []model.MemberOutput `json:"members"`
 }
 
 //CheckAccount 查询积分
@@ -146,7 +147,7 @@ func (c *Controller) CheckAccount(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			//else 多个用户结果
-			fmt.Fprintf(w, JSONString(membersResp{model.ResMore, "请选择用户", members}))
+			fmt.Fprintf(w, JSONString(membersResp{model.ResMore, "请选择用户", model.MapMembers2Output(members)}))
 			return
 		}
 		id = members[0].ID
@@ -185,6 +186,10 @@ type consumeResp struct {
 func (c *Controller) Consume(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm() //解析参数，默认是不会解析的
 	id := GetPara(r, "id")
+	if len(id) == 0 {
+		fmt.Fprintf(w, JSONString(&msgResp{model.ResInvalid, "参数不足"}))
+		return
+	}
 	m := model.NewMember()
 	errMsg := &msgResp{}
 	if err := m.FindByID(app.App.DB, id); err != nil {
@@ -213,19 +218,12 @@ func (c *Controller) Consume(w http.ResponseWriter, r *http.Request) {
 }
 
 type userResp struct {
-	RespCode  string `json:"respCode"`
-	RespMsg   string `json:"respMsg"`
-	MemberID  string `json:"id"`
-	Name      string `json:"name"`
-	Phone     string `json:"phone"`
-	CardNo    string `json:"cardNo"`
-	RefID     string `json:"refID"`
-	RefPhone  string `json:"refPhone"`
-	RefName   string `json:"refName"`
-	RefCardNo string `json:"refCardNo"`
-	Amount    string `json:"amount"`
-	Total     string `json:"total"`
-	Time      string `json:"time"`
+	RespCode  string             `json:"respCode"`
+	RespMsg   string             `json:"respMsg"`
+	Member    model.MemberOutput `json:"member"`
+	Reference model.MemberOutput `json:"reference"`
+	Amount    string             `json:"amount"`
+	Total     string             `json:"total"`
 }
 
 //JSONString output jason object
@@ -237,18 +235,11 @@ func JSONString(r interface{}) string {
 	return string(jb)
 }
 func (r *userResp) CopyMemberInfo(m *model.Member, withAccount bool) {
-	r.MemberID = m.ID
-	r.Name = m.Name.String
-	r.Phone = m.Phone.String
-	r.CardNo = m.CardNo.String
-	r.Time = m.CreateTime.Format("2006-01-02 15:04")
+	r.Member = *m.Map2Output()
 	if m.Reference.Valid {
 		ref := model.NewMember()
 		if err := ref.FindByID(app.App.DB, m.Reference.String); err == nil {
-			r.RefID = ref.ID
-			r.RefName = ref.Name.String
-			r.RefPhone = ref.Phone.String
-			r.RefCardNo = ref.CardNo.String
+			r.Reference = *ref.Map2Output()
 		}
 	}
 	if withAccount {
@@ -322,24 +313,46 @@ func (c *Controller) CheckUser(w http.ResponseWriter, r *http.Request) {
 	} //else 其他情况已返回
 }
 
-//Members 查找用户列表
-//  id      : memberid
+//Reference 查找用户列表
+//  id      : 推荐人id
 //  phone  : 消费金额 单位分, 例:120 = 1块2毛
 //  cardno: 是否使用余额,缺省否
 //  name: 姓名,姓名为关键字时,结果可能多个
 //	至少1个不为空
-func (c *Controller) Members(w http.ResponseWriter, r *http.Request) {
-	r.ParseForm() //解析参数，默认是不会解析的
-	id := GetPara(r, "id")
-	phone := GetPara(r, "phone")
-	//fmt.Println(phone)
-	cardno := GetPara(r, "cardno")
-	name := GetPara(r, "name")
+func (c *Controller) Reference(w http.ResponseWriter, r *http.Request) {
+	members, code, msg := searchMember(w, r)
+	if code == model.ResMore {
+		fmt.Fprintf(w, JSONString(membersResp{model.ResMore, "请选择用户", model.MapMembers2Output(members)}))
+		return
+	}
+	if code == model.ResFound {
+		members, err := model.FindMembersByRefID(app.App.DB, members[0].ID)
+		if err != nil {
+			if sql.ErrNoRows == err {
+				fmt.Fprintf(w, JSONString(getMsgRespByCode(model.ResNotFound)))
+				return
+			}
+			code = model.ResFail
+			msg = err.Error()
+		} else {
+			fmt.Fprintf(w, JSONString(membersResp{model.ResMore1, "推荐用户", model.MapMembers2Output(members)}))
+			return
+		}
+	}
+	fmt.Fprintf(w, JSONString(fillMemberMessageByCode(code, msg)))
+}
 
-	members, code, msg := model.SearchMembers(app.App.DB, id, phone, cardno, name)
+//Members 查找用户列表
+//  id      : memberid
+//  phone  : 电话
+//  cardno: 是否使用余额,缺省否
+//  name: 姓名,姓名为关键字时,结果可能多个
+//	至少1个不为空
+func (c *Controller) Members(w http.ResponseWriter, r *http.Request) {
+	members, code, msg := searchMember(w, r)
 	//fmt.Println(code, msg, members)
 	if code == model.ResMore {
-		fmt.Fprintf(w, JSONString(membersResp{model.ResMore, "请选择用户", members}))
+		fmt.Fprintf(w, JSONString(membersResp{model.ResMore, "请选择用户", model.MapMembers2Output(members)}))
 		return
 	}
 	if code == model.ResFound {
@@ -351,29 +364,48 @@ func (c *Controller) Members(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, JSONString(fillMemberMessageByCode(code, msg)))
 }
 
-func fillMemberMessageByCode(code string, msg string) *msgResp {
-	m := msgResp{RespCode: code}
+func getMsgRespByCode(code string) *msgResp {
+	var msg string
 	switch code {
 	case model.ResInvalid:
-		m.RespMsg = "请输入手机号或卡号或id,或姓名"
+		msg = "请输入手机号或卡号或id,或姓名"
 	case model.ResMore:
-		m.RespMsg = "请选择用户"
-		m.RespCode = model.ResOK
+		msg = "请选择用户"
+		//m.RespCode = model.ResOK
 	case model.ResNotFound:
-		m.RespMsg = "没有对应用户"
-	case model.ResFail:
-		m.RespMsg = msg
+		msg = "没有对应用户"
+	case model.ResFail: //do nothing
+		//msg = msg
 	case model.ResFound:
-		m.RespMsg = "OK"
+		msg = "OK"
 	default:
 		if len(msg) == 0 {
-			m.RespMsg = "未知错误" + code
-			panic(m.RespMsg)
-		} else {
-			m.RespMsg = msg
+			msg = "未知错误" + code
+			panic(msg)
+		} else { //do nothing
+			//			msg = msg
 		}
 	}
-	return &m
+	return &msgResp{code, msg}
+}
+func fillMemberMessageByCode(code string, msg string) *msgResp {
+	m := getMsgRespByCode(code)
+	if len(m.RespMsg) == 0 {
+		m.RespMsg = msg
+	}
+	return m
+}
+
+//返回码,详见Members
+func searchMember(w http.ResponseWriter, r *http.Request) ([]model.Member, string, string) {
+	r.ParseForm() //解析参数，默认是不会解析的
+	id := GetPara(r, "id")
+	phone := GetPara(r, "phone")
+	//fmt.Println(phone)
+	cardno := GetPara(r, "cardno")
+	name := GetPara(r, "name")
+
+	return model.SearchMembers(app.App.DB, id, phone, cardno, name)
 }
 
 //返回码,详见AddUser
@@ -405,7 +437,7 @@ func newUser(w http.ResponseWriter, r *http.Request) (members []model.Member, co
 	m, members, code, errstr = model.AddNewMember(app.App.DB, name, phone, cardno, refname, refphone, refcardno, refID, "")
 	//fmt.Println(len(members), code, errstr, m)
 	if code == model.ResMore1 {
-		fmt.Fprintf(w, JSONString(membersResp{code, "请选择引荐用户", members}))
+		fmt.Fprintf(w, JSONString(membersResp{code, "请选择引荐用户", model.MapMembers2Output(members)}))
 		return
 	}
 	if m == nil {

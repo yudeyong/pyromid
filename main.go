@@ -84,6 +84,7 @@ func main() {
 	r.HandleFunc("/gainhistory", c.GainHistory)
 	r.HandleFunc("/consumehistory", c.ConsumeHistory)
 	r.HandleFunc("/bind", c.Bind)
+	r.HandleFunc("/reference", c.Reference)
 	r.HandleFunc("/", srvMain) //设置访问的路由
 	loggedRouter := handlers.LoggingHandler(os.Stdout, r)
 	srv := &http.Server{

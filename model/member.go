@@ -25,9 +25,42 @@ type Member struct {
 	Name       sql.NullString `gorm:"column:name"`
 }
 
+//MemberOutput json输出对象
+type MemberOutput struct {
+	MemberID string `json:"id"`
+	Name     string `json:"name"`
+	Phone    string `json:"phone"`
+	CardNo   string `json:"cardNo"`
+	RefID    string `json:"refID"`
+	Time     string `json:"createTime"`
+	Level    string `json:"level"`
+}
+
 const (
 	regular = "^(13[0-9]|14[57]|15[0-35-9]|18[07-9])\\d{8}$"
 )
+
+//MapMembers2Output 转换数据库 member数组对象输出json
+func MapMembers2Output(members []Member) []MemberOutput {
+	mo := make([]MemberOutput, len(members))
+	for i, m := range members {
+		mo[i] = *m.Map2Output()
+	}
+	return mo
+}
+
+//Map2Output 转换数据库 member对象输出json
+func (m *Member) Map2Output() *MemberOutput {
+	mo := &MemberOutput{}
+	mo.MemberID = m.ID
+	mo.Name = m.Name.String
+	mo.Phone = m.Phone.String
+	mo.CardNo = m.CardNo.String
+	mo.RefID = m.Reference.String
+	mo.Time = m.CreateTime.Format("2006-01-02 15:04")
+	mo.Level = m.Level.String
+	return mo
+}
 
 //BindMemberReference 绑定推荐会员
 func BindMemberReference(db *gorm.DB, mid string, ref string) error {
@@ -93,7 +126,23 @@ func (m *Member) FindByPhoneOrCardno(db *gorm.DB, phone string, cardno string) (
 //FindByID 按id查找
 func (m *Member) FindByID(db *gorm.DB, id string) error {
 	db1 := db.Where("id=?", id).Find(&m)
+	if db1.RecordNotFound() {
+		return sql.ErrNoRows
+	}
 	return db1.Error
+}
+
+//FindMembersByRefID 按reference_id查找
+func FindMembersByRefID(db *gorm.DB, id string) ([]Member, error) {
+	var members []Member
+	db1 := db.Where("reference_id=?", id).Find(&members)
+	if db1.RecordNotFound() {
+		return nil, sql.ErrNoRows
+	}
+	if db1.Error != nil {
+		return nil, db1.Error
+	}
+	return members, nil
 }
 
 //FindByPhone 按电话查找
@@ -165,9 +214,12 @@ func (m *Member) FindByInfo(db *gorm.DB, reference string) (string, error) {
 //AddNewMember 查找推荐用户,添加新用户
 //	name, phone, cardno, refname, refphone, refcardno, refID, level string
 //	return
-//		*Member,Member[], code, err message
+//		*Member	:	推荐用户,
+//		Member[]: 推荐用户列表,
+//		code		:	ResInvalid/ResNotFound/ResMore1/ResFailCreateMember/ResOK,
+//		err message
 func AddNewMember(db *gorm.DB, name, phone, cardno, refname, refphone, refcardno, refID, level string) (*Member, []Member, string, string) {
-	fmt.Println(name, ";", phone, ";", cardno, ";", refname, ";", refphone, ";", refcardno, ";", refID, ";", level)
+	//fmt.Println(name, ";", phone, ";", cardno, ";", refname, ";", refphone, ";", refcardno, ";", refID, ";", level)
 	if len(phone) == 0 && len(cardno) == 0 {
 		return nil, nil, ResInvalid, "请提供会员数据"
 	}
