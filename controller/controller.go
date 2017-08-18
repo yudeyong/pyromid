@@ -378,10 +378,12 @@ func getMsgRespByCode(code string) *msgResp {
 		//msg = msg
 	case model.ResFound:
 		msg = "OK"
+	case model.ResPhoneInvalid:
+		msg = "无效手机号"
 	default:
 		if len(msg) == 0 {
 			msg = "未知错误" + code
-			panic(msg)
+			//panic(msg)
 		} else { //do nothing
 			//			msg = msg
 		}

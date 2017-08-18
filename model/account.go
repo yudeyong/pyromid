@@ -53,7 +53,6 @@ func NewAccount() *AccountPoint {
 // valid: true 有效期内; false 未到有效期的,不含过期的
 func GetAmountByMember(db *gorm.DB, mid string, valid bool) (decimal.Decimal, error) {
 	a := AccountPoint{}
-	zero := decimal.New(0, 0)
 	var sql string
 	if valid {
 		sql = ">="
@@ -98,7 +97,7 @@ func Consume(db *gorm.DB, m *Member, amountStr string, usePoint string, orderID 
 		}
 	}
 
-	fmt.Println("consume:", point, amount, isuse, len(consumedPoints))
+	//fmt.Println("consume:", point, amount, isuse, len(consumedPoints))
 	//reward := []decimal.Decimal
 	ul, _ := getLevelsByMember(db, m.ID)
 	length := len(ul)
@@ -114,13 +113,17 @@ func Consume(db *gorm.DB, m *Member, amountStr string, usePoint string, orderID 
 			return nil, errors.New("保存错误")
 		}
 	}
+	a := "0"
+	if len(accounts) >= 0 {
+		a = accounts[0].Amount.Round(0).String()
+	}
 
-	result := &ConsumeResult{point.Round(0).String(), amount.Round(0).String(), accounts[0].Amount.Round(0).String(), totalAmount(accounts).Round(0).String()}
+	result := &ConsumeResult{point.Round(0).String(), amount.Round(0).String(), a, totalAmount(accounts).Round(0).String()}
 	return result, nil
 }
 
 func totalAmount(as []Account) (total decimal.Decimal) {
-	total = decimal.New(0, 0)
+	total = zero
 	for _, a := range as {
 		total = total.Add(a.Amount)
 	}
@@ -134,7 +137,6 @@ func totalAmount(as []Account) (total decimal.Decimal) {
 func getConsumeAccount(db *gorm.DB, mid string, amount decimal.Decimal, orderID string) (remindAmount decimal.Decimal, point decimal.Decimal, t *Transaction, result []Account) {
 	LIMITATION := 4 //常量
 	offset := 0
-	zero := decimal.New(0, 0)
 	now := time.Now()
 	var as []Account
 	//var result []Account
@@ -227,6 +229,9 @@ func (a *Account) saveNew(db *gorm.DB) error {
 
 func getAccountPoints(db *gorm.DB, ts []Transaction) []Account {
 	arr := make([]Account, len(ts))
+	if len(ts) <= 0 {
+		return arr
+	}
 	mid := ts[0].SourceID
 	now := time.Now()
 	tomorrow := now.AddDate(0, 0, 1)

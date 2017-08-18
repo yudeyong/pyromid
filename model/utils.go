@@ -10,7 +10,7 @@ import (
 const (
 	//ResOK 返回码
 	ResOK = "200"
-	//数据重复
+	//ResDup 数据重复
 	ResDup = "201"
 	//ResMore 进一步操作
 	ResMore = "300"
@@ -30,6 +30,10 @@ const (
 	ResFail = "500"
 	//ResFailCreateMember 创建用户异常
 	ResFailCreateMember = "501"
+)
+
+var (
+	zero = decimal.New(0, 0) //常量
 )
 
 //Init 初始化 分级分成比例

@@ -74,6 +74,9 @@ func (t *Transaction) fillTransaction(orderID string, sourceID string, targetID 
 
 //CreateTransactionsByLevels 根据用户祖先返回产生返利关系,交易记录
 func createTransactionsByLevels(db *gorm.DB, ul []UserLevel, amount decimal.Decimal, orderID string) []Transaction {
+	if amount.LessThanOrEqual(zero) {
+		return []Transaction{} //无需交易,返回空数组
+	}
 	ts := make([]Transaction, len(ul))
 	id := ul[0].SonID
 	//now := time.Now()
