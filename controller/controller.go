@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"../app"
 	"../model"
@@ -69,6 +70,15 @@ type historyResp struct {
 	History  []model.HistoryTransaction `json:"history"`
 }
 
+//return nil when error
+func stringToTime(s string) *time.Time {
+	t, e := time.Parse("2006-1-2", s)
+	if e != nil {
+		fmt.Println(s, e.Error())
+		return nil
+	}
+	return &t
+}
 func (c *Controller) history(w http.ResponseWriter, r *http.Request, greaterOrLess string) {
 	r.ParseForm() //解析参数，默认是不会解析的
 	id := GetPara(r, "id")
@@ -82,8 +92,13 @@ func (c *Controller) history(w http.ResponseWriter, r *http.Request, greaterOrLe
 	size, _ := strconv.Atoi(str)
 	str = GetPara(r, "offset")
 	offset, _ := strconv.Atoi(str)
+	str = GetPara(r, "start")
+	start := stringToTime(str)
+	str = GetPara(r, "end")
+	end := stringToTime(str)
+	//fmt.Println(str, end, start)
 	//fmt.Println(id, size, offset)
-	history, err := model.TransactionHistoryByID(app.App.DB, id, size, offset, greaterOrLess)
+	history, err := model.TransactionHistoryByID(app.App.DB, id, start, end, size, offset, greaterOrLess)
 	if err != nil {
 		fmt.Fprintf(w, errMsg.messageString(model.ResFail, err.Error()))
 		return
@@ -96,6 +111,8 @@ func (c *Controller) history(w http.ResponseWriter, r *http.Request, greaterOrLe
 //  id      : memberid
 //	pagesize:
 //	offset:
+//	start:	2016-1-2
+//	end:	2016-1-2
 func (c *Controller) GainHistory(w http.ResponseWriter, r *http.Request) {
 	c.history(w, r, ">")
 }
@@ -104,6 +121,8 @@ func (c *Controller) GainHistory(w http.ResponseWriter, r *http.Request) {
 //  id      : memberid
 //	pagesize:
 //	offset:
+//	start:	2016-1-2
+//	end:	2016-1-2
 func (c *Controller) ConsumeHistory(w http.ResponseWriter, r *http.Request) {
 	c.history(w, r, "<")
 }

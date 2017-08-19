@@ -41,16 +41,36 @@ type HistoryTransaction struct {
 
 //TransactionHistoryByID 获取交易记录 根据member.id
 //	greaterOrLess : ">"获取记录,"<"消费记录
-func TransactionHistoryByID(db *gorm.DB, mid string, pageSize int, offset int, greatOrLess string) ([]HistoryTransaction, error) {
+func TransactionHistoryByID(db *gorm.DB, mid string, start, end *time.Time, pageSize int, offset int, greatOrLess string) ([]HistoryTransaction, error) {
 	var history []HistoryTransaction
 	var db1 *gorm.DB
 	if pageSize == 0 {
 		pageSize = defaultPageSize
 	}
+	var sql string
+	if start != nil && end != nil {
+		if (*start).After(*end) {
+			d := start
+			start = end
+			end = d
+		}
+		t := end.Add(time.Hour*24 - time.Microsecond)
+		end = &t
+		sql = "transactiontime between '" + start.Format("2006-1-2") + "' and '" + end.Format("2006-1-2 15:04:05") + "' and "
+	} else {
+		if start != nil {
+			sql = "transactiontime>='" + start.Format("2006-1-2") + "' and "
+		} else if end != nil {
+			t := end.Add(time.Hour*24 - time.Microsecond)
+			end = &t
+			sql = "transactiontime<='" + end.Format("2006-1-2") + "' and "
+		}
+	}
+	fmt.Println("time sql:", sql)
 	db1 = db.Order("transactiontime").Limit(pageSize).Offset(offset).Table("transactions t")
 	db1 = db1.Joins("JOIN members m1 ON source_id=m1.id").Joins("JOIN members m2 ON target_id=m2.id")
 	db1 = db1.Select("t.id id,order_id,m1.id member_id,m1.name mname,m1.phone phone,m2.id relation_id,m2.name rname,amount,transactiontime")
-	db1 = db1.Where("amount"+greatOrLess+"0 and target_id=?", mid)
+	db1 = db1.Where(sql+"amount"+greatOrLess+"0 and target_id=?", mid)
 	db1 = db1.Find(&history)
 	//db1 = db.Limit(pageSize).Offset(offset).Find(&history, "target_id=?", mid)
 	if db1.RecordNotFound() {
