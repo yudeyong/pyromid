@@ -79,6 +79,7 @@ func main() {
 	r := mux.NewRouter()
 	r.HandleFunc("/consume", c.Consume)
 	r.HandleFunc("/adduser", c.AddUser)
+	r.HandleFunc("/updateuser", c.UpdateUser)
 	r.HandleFunc("/checkuser", c.Members)
 	r.HandleFunc("/checkaccount", c.CheckAccount)
 	r.HandleFunc("/gainhistory", c.GainHistory)

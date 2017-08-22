@@ -79,14 +79,24 @@ func stringToTime(s string) *time.Time {
 	}
 	return &t
 }
+
 func (c *Controller) history(w http.ResponseWriter, r *http.Request, greaterOrLess string) {
 	r.ParseForm() //解析参数，默认是不会解析的
 	id := GetPara(r, "id")
 	//var err error
 	errMsg := &msgResp{}
 	if len(id) == 0 {
-		fmt.Fprintf(w, errMsg.messageString(model.ResInvalid, "id不能为空"))
-		return
+		members, code, msg := searchMember(r)
+		//fmt.Println(code, msg, members)
+		if code == model.ResMore {
+			fmt.Fprintf(w, JSONString(membersResp{model.ResMore, "请选择用户", model.MapMembers2Output(members)}))
+			return
+		}
+		if code != model.ResFound {
+			fmt.Fprintf(w, errMsg.messageString(code, msg))
+			return
+		}
+		id = members[0].ID
 	}
 	str := GetPara(r, "pagesize")
 	size, _ := strconv.Atoi(str)
@@ -269,6 +279,39 @@ func (r *userResp) CopyMemberInfo(m *model.Member, withAccount bool) {
 	}
 }
 
+//UpdateUser 添加用户
+//  phone     : 用户手机号
+//  cardno    : 用户卡号,原则上, 不需编辑卡号
+//  name      : 用户名,与手机号至少一个不为空
+//	id				:	用户id
+//	return :
+//		code = "200" 成功
+//		code = "412" 参数不足
+//		code = "500" 内部错误
+func (c *Controller) UpdateUser(w http.ResponseWriter, r *http.Request) {
+	r.ParseForm() //解析参数，默认是不会解析的
+	//  map :=
+	id := GetPara(r, "id")
+	errMsg := &msgResp{}
+	if len(id) == 0 {
+		fmt.Fprintf(w, errMsg.messageString(model.ResInvalid, "id不能为空"))
+		return
+	}
+	phone := GetPara(r, "phone")
+	cardno := GetPara(r, "cardno")
+	name := GetPara(r, "name")
+	if len(phone) == 0 || len(name) == 0 {
+		fmt.Fprintf(w, errMsg.messageString(model.ResInvalid, "phone or name不能均为空"))
+		return
+	}
+	err := model.UpdateMember(app.App.DB, id, phone, cardno, name)
+	if err != nil {
+		fmt.Fprintf(w, errMsg.messageString(model.ResFail, err.Error()))
+		return
+	}
+	fmt.Fprintf(w, errMsg.messageString(model.ResOK, "更新成功"))
+}
+
 //AddUser 添加用户
 //  phone     : 用户手机号
 //  cardno    : 用户卡号,与手机号,至少一个非空. 不存在时, 创建新用户, 及其推荐返利关系树
@@ -339,13 +382,16 @@ func (c *Controller) CheckUser(w http.ResponseWriter, r *http.Request) {
 //  name: 姓名,姓名为关键字时,结果可能多个
 //	至少1个不为空
 func (c *Controller) Reference(w http.ResponseWriter, r *http.Request) {
-	members, code, msg := searchMember(w, r)
+	members, code, msg := searchMember(r)
+	//fmt.Println("ref back", members, code, msg)
 	if code == model.ResMore {
 		fmt.Fprintf(w, JSONString(membersResp{model.ResMore, "请选择用户", model.MapMembers2Output(members)}))
 		return
 	}
 	if code == model.ResFound {
-		members, err := model.FindMembersByRefID(app.App.DB, members[0].ID)
+		m := members[0]
+		members, err := model.FindMembersByRefID(app.App.DB, m.ID)
+		//fmt.Println("ref result", m, members, err)
 		if err != nil {
 			if sql.ErrNoRows == err {
 				fmt.Fprintf(w, JSONString(getMsgRespByCode(model.ResNotFound)))
@@ -354,7 +400,7 @@ func (c *Controller) Reference(w http.ResponseWriter, r *http.Request) {
 			code = model.ResFail
 			msg = err.Error()
 		} else {
-			fmt.Fprintf(w, JSONString(membersResp{model.ResMore1, "推荐用户", model.MapMembers2Output(members)}))
+			fmt.Fprintf(w, JSONString(membersResp{model.ResMore1, m.Name.String, model.MapMembers2Output(members)}))
 			return
 		}
 	}
@@ -368,7 +414,7 @@ func (c *Controller) Reference(w http.ResponseWriter, r *http.Request) {
 //  name: 姓名,姓名为关键字时,结果可能多个
 //	至少1个不为空
 func (c *Controller) Members(w http.ResponseWriter, r *http.Request) {
-	members, code, msg := searchMember(w, r)
+	members, code, msg := searchMember(r)
 	//fmt.Println(code, msg, members)
 	if code == model.ResMore {
 		fmt.Fprintf(w, JSONString(membersResp{model.ResMore, "请选择用户", model.MapMembers2Output(members)}))
@@ -417,8 +463,8 @@ func fillMemberMessageByCode(code string, msg string) *msgResp {
 	return m
 }
 
-//返回码,详见Members
-func searchMember(w http.ResponseWriter, r *http.Request) ([]model.Member, string, string) {
+//返回码,详见Members model.SearchMembersByInfo
+func searchMember(r *http.Request) ([]model.Member, string, string) {
 	r.ParseForm() //解析参数，默认是不会解析的
 	id := GetPara(r, "id")
 	phone := GetPara(r, "phone")

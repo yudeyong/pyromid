@@ -31,8 +31,8 @@ type HistoryTransaction struct {
 	ID              string          `gorm:"column:id"`
 	OrderID         sql.NullString  `gorm:"column:order_id"`
 	MemberID        string          `gorm:"column:member_id"`
-	MemberName      string          `gorm:"column:mname"`
-	MemberPhone     string          `gorm:"column:phone"`
+	MemberName      string          `gorm:"column:mname" json:"name"`
+	MemberPhone     string          `gorm:"column:phone" json:"phone"`
 	RelationID      string          `gorm:"column:relation_id"`
 	RelationName    string          `gorm:"column:rname"`
 	Amount          decimal.Decimal `gorm:"column:amount"`
