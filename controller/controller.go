@@ -83,6 +83,7 @@ func stringToTime(s string) *time.Time {
 func (c *Controller) history(w http.ResponseWriter, r *http.Request, greaterOrLess string) {
 	r.ParseForm() //解析参数，默认是不会解析的
 	id := GetPara(r, "id")
+	var name string
 	//var err error
 	errMsg := &msgResp{}
 	if len(id) == 0 {
@@ -97,6 +98,7 @@ func (c *Controller) history(w http.ResponseWriter, r *http.Request, greaterOrLe
 			return
 		}
 		id = members[0].ID
+		name = members[0].Name.String
 	}
 	str := GetPara(r, "pagesize")
 	size, _ := strconv.Atoi(str)
@@ -113,7 +115,18 @@ func (c *Controller) history(w http.ResponseWriter, r *http.Request, greaterOrLe
 		fmt.Fprintf(w, errMsg.messageString(model.ResFail, err.Error()))
 		return
 	}
-	resp := historyResp{model.ResOK, ok, history}
+	if len(name) == 0 {
+		if len(history) > 0 {
+			name = history[0].RelationName
+		} else {
+			m := model.NewMember()
+			err := m.FindByID(app.App.DB, id)
+			if err == nil {
+				name = m.Name.String
+			}
+		}
+	}
+	resp := historyResp{model.ResOK, name, history}
 	fmt.Fprintf(w, JSONString(resp))
 }
 

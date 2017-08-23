@@ -28,14 +28,14 @@ type Transaction struct {
 
 //HistoryTransaction 历史记录视图
 type HistoryTransaction struct {
-	ID              string          `gorm:"column:id"`
+	ID              string          `gorm:"column:id" json:"id"`
 	OrderID         sql.NullString  `gorm:"column:order_id"`
 	MemberID        string          `gorm:"column:member_id"`
 	MemberName      string          `gorm:"column:mname" json:"name"`
 	MemberPhone     string          `gorm:"column:phone" json:"phone"`
 	RelationID      string          `gorm:"column:relation_id"`
-	RelationName    string          `gorm:"column:rname"`
-	Amount          decimal.Decimal `gorm:"column:amount"`
+	RelationName    string          `gorm:"column:rname" json:"rname"`
+	Amount          decimal.Decimal `gorm:"column:amount" json:"amount"`
 	TransactionTime time.Time       `gorm:"column:transactiontime" json:"time"`
 }
 

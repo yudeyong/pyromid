@@ -232,12 +232,12 @@ func getAccountPoints(db *gorm.DB, ts []Transaction) []Account {
 	if len(ts) <= 0 {
 		return arr
 	}
-	mid := ts[0].SourceID
+	//mid := ts[0].SourceID
 	now := time.Now()
 	tomorrow := now.AddDate(0, 0, 1)
 	for i, t := range ts {
 		arr[i].ID = uuid.NewV4().String()
-		arr[i].MemberID = mid
+		arr[i].MemberID = t.TargetID
 		arr[i].Amount = t.Amount
 		//arr[i].ExpireDate = &tomorrow
 		//arr[i].ExpireDate leave null
