@@ -11,6 +11,7 @@ import (
 
 	gorm "gopkg.in/jinzhu/gorm.v1"
 
+	"github.com/e2u/goboot"
 	"github.com/twinj/uuid"
 )
 
@@ -72,13 +73,13 @@ func BindMemberReference(db *gorm.DB, mid string, ref string) error {
 	if true == m.Reference.Valid {
 		return errors.New("用户已有推荐用户")
 	}
-	var ul *UserLevel
+	var isAncestor bool
 	//被推荐用户不能是推荐用户的'祖先'
-	ul, err = checkAncestor(db, ref, mid)
+	isAncestor, err = checkAncestor(db, ref, mid)
 	if err != nil {
 		return err
 	}
-	if ul != nil {
+	if isAncestor {
 		return errors.New("不能循环推荐")
 	}
 	r := NewMember()
@@ -87,7 +88,20 @@ func BindMemberReference(db *gorm.DB, mid string, ref string) error {
 	}
 	//fmt.Println(m, r)
 	m.Reference.Scan(r.ID)
-	db.Save(m)
+	tx := db.Begin() //开启事务
+	db1 := tx.Save(m)
+	if db1.Error != nil {
+		tx.Rollback()
+		goboot.Log.Error(db1.Error)
+		return db1.Error
+	}
+	ul, err := CreateLevels(tx, m, 1)
+	if ul == nil {
+		tx.Rollback()
+		goboot.Log.Error(err)
+		return err
+	}
+	tx.Commit()
 	return nil
 }
 
@@ -242,7 +256,7 @@ func (m *Member) createMember(db *gorm.DB, phone string, cardno string, referenc
 		return errors.New("用户创建失败")
 	}
 
-	go CreateLevels(db, m) //异步创建族谱, 快速返回用户创建请求
+	go CreateLevels(db, m, 0) //异步创建族谱, 快速返回用户创建请求
 	return nil
 }
 

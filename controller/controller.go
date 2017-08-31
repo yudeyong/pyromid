@@ -45,11 +45,11 @@ func GetPara(r *http.Request, key string) string {
 
 //Bind 绑定用户推荐
 //	id 被绑定会员id
-//	ref 推荐会员id
+//	refid 推荐会员id
 func (c *Controller) Bind(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm() //解析参数，默认是不会解析的
 	id := GetPara(r, "id")
-	ref := GetPara(r, "ref")
+	ref := GetPara(r, "refid")
 	errMsg := &msgResp{}
 	if len(id) == 0 || len(ref) == 0 {
 		fmt.Fprintf(w, errMsg.messageString(model.ResInvalid, "id or ref不能为空"))

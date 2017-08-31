@@ -49,7 +49,7 @@ type ReferenceOutput struct {
 	CardNo       string          `json:"cardNo"`
 	Phone        string          `json:"phone"`
 	Level        string          `json:"level"`
-	CreateTime   time.Time       `json:"createTime"`
+	CreateTime   string          `json:"createTime"`
 	Reference    string          `json:"refID"`
 	Name         string          `json:"name"`
 	RoyaltyRatio decimal.Decimal `json:"royaltyratio"`
@@ -58,16 +58,17 @@ type ReferenceOutput struct {
 
 // 是否mid祖先中包含 ref
 // return nil,nil 不包含
-func checkAncestor(db *gorm.DB, mid string, ref string) (*UserLevel, error) {
+// to do 未完全完成,仅检查了最近3代,没做完全检查
+func checkAncestor(db *gorm.DB, mid string, ref string) (bool, error) {
 	ul := UserLevel{}
 	db1 := db.Where("sonnode_id=? and ancestornode_id=?", mid, ref).First(&ul)
 	if db1.RecordNotFound() {
-		return nil, nil
+		return false, nil
 	}
 	if db1.Error != nil {
-		return nil, db1.Error
+		return false, db1.Error
 	}
-	return &ul, nil
+	return true, nil
 }
 
 //InitLevelRatios 初始化分成比例
@@ -85,7 +86,9 @@ func InitLevelRatios(ratios *([]decimal.Decimal)) error {
 }
 
 //CreateLevels 创建level记录
-func CreateLevels(db *gorm.DB, member *Member) (*UserLevel, error) {
+//isUpdate = 0, 新建用户level
+//isUpdate = 1, 跳过 自己记录, 更新绑定
+func CreateLevels(db *gorm.DB, member *Member, isUpdate int) (*UserLevel, error) {
 	u := &UserLevel{}
 	l := len(levelRatios)
 	length := l
@@ -125,7 +128,7 @@ func CreateLevels(db *gorm.DB, member *Member) (*UserLevel, error) {
 		}
 	}
 	fmt.Println("valid ancnetor:", l)
-	for i := 0; i < l; i++ {
+	for i := isUpdate; i < l; i++ {
 		//fmt.Println("add ul:",
 		u.AddNewUserLevel(db, member.ID, ancestors[i], i)
 	}
@@ -143,7 +146,7 @@ func (u *UserLevel) AddNewUserLevel(db *gorm.DB, son string, ancestor string, ge
 //FindReferenceByID 按reference_id查找继承关系
 func FindReferenceByID(db *gorm.DB, id string) ([]ReferenceRelationship, error) {
 	var refs []ReferenceRelationship
-	db1 := db.Table("members").Joins("JOIN user_levels on user_levels.ancestornode_id=members.id").Select("members.*,royaltyratio,generations").Where("sonnode_id=?", id).Find(&refs)
+	db1 := db.Table("members").Joins("JOIN user_levels on user_levels.sonnode_id=members.id").Select("members.*,royaltyratio,generations").Where("ancestornode_id=?", id).Find(&refs)
 	if db1.RecordNotFound() {
 		return nil, sql.ErrNoRows
 	}
@@ -159,7 +162,7 @@ func MapReference2Output(rs []ReferenceRelationship) []ReferenceOutput {
 	for i, rr := range rs {
 		ros[i].ID = rr.ID
 		ros[i].CardNo = rr.CardNo.String
-		ros[i].CreateTime = rr.CreateTime
+		ros[i].CreateTime = rr.CreateTime.Format("2006-01-02 15:04")
 		ros[i].Generations = rr.Generations
 		ros[i].Level = rr.Level.String
 		ros[i].Name = rr.Name.String
@@ -170,7 +173,7 @@ func MapReference2Output(rs []ReferenceRelationship) []ReferenceOutput {
 	return ros
 }
 
-//FillNewUserLevel 用输入字段创建 user level 对象
+//fillNewUserLevel 用输入字段创建 user level 对象
 func (u *UserLevel) fillNewUserLevel(son string, ancestor string, generations int) {
 	u.ID = 0 //自增, 清除
 	u.SonID = son
