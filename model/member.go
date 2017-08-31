@@ -133,19 +133,6 @@ func (m *Member) FindByID(db *gorm.DB, id string) error {
 	return db1.Error
 }
 
-//FindMembersByRefID 按reference_id查找
-func FindMembersByRefID(db *gorm.DB, id string) ([]Member, error) {
-	var members []Member
-	db1 := db.Where("reference_id=?", id).Find(&members)
-	if db1.RecordNotFound() {
-		return nil, sql.ErrNoRows
-	}
-	if db1.Error != nil {
-		return nil, db1.Error
-	}
-	return members, nil
-}
-
 //FindByPhone 按电话查找
 func (m *Member) FindByPhone(db *gorm.DB, phone string) (string, error) {
 	if !ValidatePhone(phone) {

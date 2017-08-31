@@ -1,6 +1,7 @@
 package model
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"log"
@@ -25,6 +26,34 @@ type UserLevel struct {
 	RoyaltyRatio decimal.Decimal `gorm:"column:royaltyratio"`
 	Generations  int             `gorm:"column:generations"`
 	UpdTime      time.Time       `gorm:"column:updtime"`
+}
+
+//ReferenceRelationship 用户关系视图
+type ReferenceRelationship struct {
+	//相关推荐人id
+	ID           string          `gorm:"column:id"`
+	CardNo       sql.NullString  `gorm:"column:cardno"`
+	Phone        sql.NullString  `gorm:"column:phone"`
+	Level        sql.NullString  `gorm:"column:level"`
+	CreateTime   time.Time       `gorm:"column:createtime"`
+	Reference    sql.NullString  `gorm:"column:reference_id"`
+	Name         sql.NullString  `gorm:"column:name"`
+	RoyaltyRatio decimal.Decimal `gorm:"column:royaltyratio"`
+	Generations  int             `gorm:"column:generations"`
+}
+
+//ReferenceOutput 用户关系视图输出json
+type ReferenceOutput struct {
+	//相关推荐人id
+	ID           string          `json:"id"`
+	CardNo       string          `json:"cardNo"`
+	Phone        string          `json:"phone"`
+	Level        string          `json:"level"`
+	CreateTime   time.Time       `json:"createTime"`
+	Reference    string          `json:"refID"`
+	Name         string          `json:"name"`
+	RoyaltyRatio decimal.Decimal `json:"royaltyratio"`
+	Generations  int             `json:"generations"`
 }
 
 // 是否mid祖先中包含 ref
@@ -109,6 +138,36 @@ func (u *UserLevel) AddNewUserLevel(db *gorm.DB, son string, ancestor string, ge
 	u.fillNewUserLevel(son, ancestor, generations)
 	db.Create(u)
 	return db.NewRecord(u)
+}
+
+//FindReferenceByID 按reference_id查找继承关系
+func FindReferenceByID(db *gorm.DB, id string) ([]ReferenceRelationship, error) {
+	var refs []ReferenceRelationship
+	db1 := db.Table("members").Joins("JOIN user_levels on user_levels.ancestornode_id=members.id").Select("members.*,royaltyratio,generations").Where("sonnode_id=?", id).Find(&refs)
+	if db1.RecordNotFound() {
+		return nil, sql.ErrNoRows
+	}
+	if db1.Error != nil {
+		return nil, db1.Error
+	}
+	return refs, nil
+}
+
+//MapReference2Output 数据视图转换输出json对象
+func MapReference2Output(rs []ReferenceRelationship) []ReferenceOutput {
+	ros := make([]ReferenceOutput, len(rs))
+	for i, rr := range rs {
+		ros[i].ID = rr.ID
+		ros[i].CardNo = rr.CardNo.String
+		ros[i].CreateTime = rr.CreateTime
+		ros[i].Generations = rr.Generations
+		ros[i].Level = rr.Level.String
+		ros[i].Name = rr.Name.String
+		ros[i].Phone = rr.Phone.String
+		ros[i].Reference = rr.Reference.String
+		ros[i].RoyaltyRatio = rr.RoyaltyRatio
+	}
+	return ros
 }
 
 //FillNewUserLevel 用输入字段创建 user level 对象

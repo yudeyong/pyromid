@@ -162,6 +162,14 @@ type membersResp struct {
 	Members  []model.MemberOutput `json:"members"`
 }
 
+type referencesResp struct {
+	RespCode string                  `json:"respCode"`
+	RespMsg  string                  `json:"respMsg"`
+	MemberID string                  `json:"id"`
+	Name     string                  `json:"name"`
+	Refs     []model.ReferenceOutput `json:"members"`
+}
+
 //CheckAccount 查询积分
 //  id      : memberid
 //  phone  : 消费金额 单位分, 例:120 = 1块2毛
@@ -403,7 +411,7 @@ func (c *Controller) Reference(w http.ResponseWriter, r *http.Request) {
 	}
 	if code == model.ResFound {
 		m := members[0]
-		members, err := model.FindMembersByRefID(app.App.DB, m.ID)
+		refs, err := model.FindReferenceByID(app.App.DB, m.ID)
 		//fmt.Println("ref result", m, members, err)
 		if err != nil {
 			if sql.ErrNoRows == err {
@@ -413,7 +421,7 @@ func (c *Controller) Reference(w http.ResponseWriter, r *http.Request) {
 			code = model.ResFail
 			msg = err.Error()
 		} else {
-			fmt.Fprintf(w, JSONString(membersResp{model.ResMore1, m.Name.String, model.MapMembers2Output(members)}))
+			fmt.Fprintf(w, JSONString(referencesResp{model.ResMore1, m.Name.String, m.ID, m.Name.String, model.MapReference2Output(refs)}))
 			return
 		}
 	}
