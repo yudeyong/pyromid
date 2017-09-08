@@ -450,6 +450,22 @@ func (c *Controller) Members(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, JSONString(fillMemberMessageByCode(code, msg)))
 }
 
+//GetRatio 获取当前分成比例
+func (c *Controller) GetRatio(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintf(w, model.GetRatioJSON())
+}
+
+//SetRatio 设置当前分成比例
+func (c *Controller) SetRatio(w http.ResponseWriter, r *http.Request) {
+	r.ParseForm()
+	ratios := r.Form["ratio"]
+	fmt.Println(ratios)
+	sync := GetPara(r, "syncall")
+	updAll := GetPara(r, "updateall")
+
+	code, msg := model.UpdateRatios(app.App.DB, ratios, sync, updAll)
+	fmt.Fprintf(w, JSONString(&msgResp{code, msg}))
+}
 func getMsgRespByCode(code string) *msgResp {
 	var msg string
 	switch code {

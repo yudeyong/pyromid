@@ -2,9 +2,12 @@ package model
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
+	"strconv"
+	"sync"
 	"time"
 
 	gorm "gopkg.in/jinzhu/gorm.v1"
@@ -16,7 +19,15 @@ var (
 	//levelRatios 配置分成比例
 	levelRatios []decimal.Decimal
 	totalRatio  decimal.Decimal
+
+	ratiosJSON string
 )
+
+type ratiosOutput struct {
+	RespCode string   `json:"respCode"`
+	RespMsg  string   `json:"respMsg"`
+	Ratios   []string `json:"ratios"`
+}
 
 //UserLevel 用户关系表
 type UserLevel struct {
@@ -56,33 +67,108 @@ type ReferenceOutput struct {
 	Generations  int             `json:"generations"`
 }
 
-// 是否mid祖先中包含 ref
-// return nil,nil 不包含
-// to do 未完全完成,仅检查了最近3代,没做完全检查
-func checkAncestor(db *gorm.DB, mid string, ref string) (bool, error) {
-	ul := UserLevel{}
-	db1 := db.Where("sonnode_id=? and ancestornode_id=?", mid, ref).First(&ul)
-	if db1.RecordNotFound() {
-		return false, nil
-	}
-	if db1.Error != nil {
-		return false, db1.Error
-	}
-	return true, nil
-}
-
 //InitLevelRatios 初始化分成比例
 func InitLevelRatios(ratios *([]decimal.Decimal)) error {
-	if len(*ratios) <= 0 {
-		return errors.New("无返利配置")
-	}
+	var mutex sync.Mutex
+	mutex.Lock()
+	// if len(*ratios) <= 0 {
+	// 	return errors.New("无返利配置")
+	// }
 	levelRatios = make([]decimal.Decimal, len(*ratios))
-	totalRatio = decimal.New(0, 4)
+	totalRatio = zero
+	str := make([]string, len(levelRatios))
 	for i, d := range *ratios {
 		levelRatios[i] = d
 		totalRatio.Add(d)
+		str[i] = d.String()
 	}
+	b, _ := json.Marshal(ratiosOutput{"200", "OK", str})
+	ratiosJSON = string(b)
+	mutex.Unlock()
 	return nil
+}
+
+func updateAllUserLevel(db *gorm.DB, mask []bool, oldRatios []decimal.Decimal, updateAll bool) error {
+	log.Println("开始更新用户关系表")
+	fmt.Println(oldRatios, levelRatios)
+	var where, value []string
+	newLen := len(levelRatios)
+	oldLen := len(oldRatios)
+	//var deleFrom, deleTo, insertFrom,insertTo
+	// insertTo = deleFrom = newLen
+	// insertFrom = deleTo = oldLen
+	var updTo int
+	if newLen > oldLen {
+		updTo = oldLen
+	} else {
+		updTo = newLen
+	}
+	where = make([]string, 0, updTo)
+	value = make([]string, 0, updTo)
+	//l := len(mask)
+	//ASSERT(l=oldLen)
+	fmt.Println(mask, oldLen)
+	//generate update condition & value to be set
+	for i := 0; i < updTo; i++ {
+		if /*i < oldLen &&*/ mask[i] {
+			value = append(value, levelRatios[i].String())
+			str := "generations=" + strconv.Itoa(i)
+			if !updateAll /*&& i < oldLen*/ {
+				str += " and royaltyratio=" + oldRatios[i].String()
+			}
+			where = append(where, str)
+		}
+	}
+
+	tx := db.Begin() //开启事务
+	var db1 *gorm.DB
+	fmt.Println("dele", newLen, oldLen)
+	//for i := newLen; i < oldLen; i++
+	if newLen < oldLen {
+		db1 = tx.Delete(UserLevel{}, "generations>=?", newLen)
+		fmt.Println("del", db1)
+		if db1.Error != nil {
+			tx.Rollback()
+			return db1.Error
+		}
+	}
+	fmt.Println("insert", oldLen, newLen)
+	now := time.Now().Format("2006-01-02 15:04")
+	var from int
+	if oldLen == 0 {
+		from = 1
+		db1 = tx.Exec("insert into user_levels(sonnode_id,ancestornode_id,royaltyratio,generations,updtime) select id, id,?,0,? from members where reference_id is not null;", levelRatios[0], now)
+		fmt.Println(db1)
+		if db1.Error != nil {
+			tx.Rollback()
+			return db1.Error
+		}
+	} else {
+		from = oldLen
+	}
+	for i := from; i < newLen; i++ {
+		db1 = tx.Exec("insert into user_levels(sonnode_id,ancestornode_id,royaltyratio,generations,updtime) select sonnode_id, m.reference_id,?,?,? from user_levels,members m where m.id=ancestornode_id and generations=? and reference_id is not null;", levelRatios[i], i, now, i-1)
+		if db1.Error != nil {
+			tx.Rollback()
+			return db1.Error
+		}
+	}
+	fmt.Println("update", updTo, where, value)
+	for i := range where {
+		db1 := tx.Model(&UserLevel{}).Where(where[i]).Update("royaltyratio", value[i])
+		if db1.Error != nil {
+			tx.Rollback()
+			return db1.Error
+		}
+	}
+	tx.Commit()
+	log.Println("用户关系表更新成功")
+	return nil
+}
+
+//GetRatioJSON 获取费率json
+func GetRatioJSON() string {
+	return ratiosJSON
 }
 
 //CreateLevels 创建level记录
@@ -171,6 +257,21 @@ func MapReference2Output(rs []ReferenceRelationship) []ReferenceOutput {
 		ros[i].RoyaltyRatio = rr.RoyaltyRatio
 	}
 	return ros
+}
+
+// 是否mid祖先中包含 ref
+// return nil,nil 不包含
+// to do 未完全完成,仅检查了最近3代,没做完全检查
+func checkAncestor(db *gorm.DB, mid string, ref string) (bool, error) {
+	ul := UserLevel{}
+	db1 := db.Where("sonnode_id=? and ancestornode_id=?", mid, ref).First(&ul)
+	if db1.RecordNotFound() {
+		return false, nil
+	}
+	if db1.Error != nil {
+		return false, db1.Error
+	}
+	return true, nil
 }
 
 //fillNewUserLevel 用输入字段创建 user level 对象
