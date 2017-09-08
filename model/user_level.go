@@ -90,7 +90,7 @@ func InitLevelRatios(ratios *([]decimal.Decimal)) error {
 
 func updateAllUserLevel(db *gorm.DB, mask []bool, oldRatios []decimal.Decimal, updateAll bool) error {
 	log.Println("开始更新用户关系表")
-	fmt.Println(oldRatios, levelRatios)
+	//fmt.Println(oldRatios, levelRatios)
 	var where, value []string
 	newLen := len(levelRatios)
 	oldLen := len(oldRatios)
@@ -107,7 +107,7 @@ func updateAllUserLevel(db *gorm.DB, mask []bool, oldRatios []decimal.Decimal, u
 	value = make([]string, 0, updTo)
 	//l := len(mask)
 	//ASSERT(l=oldLen)
-	fmt.Println(mask, oldLen)
+	//fmt.Println(mask, oldLen)
 	//generate update condition & value to be set
 	for i := 0; i < updTo; i++ {
 		if /*i < oldLen &&*/ mask[i] {
@@ -122,23 +122,22 @@ func updateAllUserLevel(db *gorm.DB, mask []bool, oldRatios []decimal.Decimal, u
 
 	tx := db.Begin() //开启事务
 	var db1 *gorm.DB
-	fmt.Println("dele", newLen, oldLen)
+	//fmt.Println("dele", newLen, oldLen)
 	//for i := newLen; i < oldLen; i++
 	if newLen < oldLen {
 		db1 = tx.Delete(UserLevel{}, "generations>=?", newLen)
-		fmt.Println("del", db1)
+		//fmt.Println("del", db1)
 		if db1.Error != nil {
 			tx.Rollback()
 			return db1.Error
 		}
 	}
-	fmt.Println("insert", oldLen, newLen)
+	//fmt.Println("insert", oldLen, newLen)
 	now := time.Now().Format("2006-01-02 15:04")
 	var from int
 	if oldLen == 0 {
 		from = 1
 		db1 = tx.Exec("insert into user_levels(sonnode_id,ancestornode_id,royaltyratio,generations,updtime) select id, id,?,0,? from members where reference_id is not null;", levelRatios[0], now)
-		fmt.Println(db1)
 		if db1.Error != nil {
 			tx.Rollback()
 			return db1.Error
@@ -153,7 +152,7 @@ func updateAllUserLevel(db *gorm.DB, mask []bool, oldRatios []decimal.Decimal, u
 			return db1.Error
 		}
 	}
-	fmt.Println("update", updTo, where, value)
+	//fmt.Println("update", updTo, where, value)
 	for i := range where {
 		db1 := tx.Model(&UserLevel{}).Where(where[i]).Update("royaltyratio", value[i])
 		if db1.Error != nil {
@@ -213,7 +212,7 @@ func CreateLevels(db *gorm.DB, member *Member, isUpdate int) (*UserLevel, error)
 			log.Printf("user level get ancestors sql error:%s", db1.Error)
 		}
 	}
-	fmt.Println("valid ancnetor:", l)
+	//fmt.Println("valid ancnetor:", l)
 	for i := isUpdate; i < l; i++ {
 		//fmt.Println("add ul:",
 		u.AddNewUserLevel(db, member.ID, ancestors[i], i)
