@@ -164,7 +164,7 @@ CREATE TABLE members (
     id uuid NOT NULL,
     cardno text,
     phone text,
-    level integer NOT NULL,
+    level integer,
     createtime timestamp without time zone NOT NULL,
     reference_id uuid,
     name text
