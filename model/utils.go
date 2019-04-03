@@ -30,6 +30,9 @@ const (
 	ResFail = "500"
 	//ResFailCreateMember 创建用户异常
 	ResFailCreateMember = "501"
+
+	//到账期限, T+n n=AvailableDays
+	AvailableDays = 0
 )
 
 var (

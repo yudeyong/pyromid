@@ -72,10 +72,10 @@ func GetAmountByMember(db *gorm.DB, mid string, valid bool) (decimal.Decimal, er
 }
 
 //Consume 消费金额
-//	m member
-//	amountStr	金额字符串形式, 分为单位,例, 120 1块2毛
-//	usePoint	是否使用账户金额
-//	order			订单id
+// 	m member
+//  amountStr	金额字符串形式, 分为单位,例, 120 1块2毛
+//  usePoint	是否使用账户金额
+//  order:订单id
 func Consume(db *gorm.DB, m *Member, amountStr string, usePoint string, orderID string) (*ConsumeResult, error) {
 	amount, err := decimal.NewFromString(amountStr)
 	if err != nil {
@@ -114,7 +114,7 @@ func Consume(db *gorm.DB, m *Member, amountStr string, usePoint string, orderID 
 		}
 	}
 	a := "0"
-	if len(accounts) >= 0 {
+	if len(accounts) > 0 {
 		a = accounts[0].Amount.Round(0).String()
 	}
 
@@ -142,7 +142,8 @@ func getConsumeAccount(db *gorm.DB, mid string, amount decimal.Decimal, orderID 
 	//var result []Account
 	remindAmount = amount
 	for remindAmount.GreaterThan(zero) {
-		db1 := db.Order("expiredate").Offset(offset).Limit(LIMITATION).Find(&as, "current_date >= startdate and ((current_date<=expiredate) or (expiredate is null)) and amount>0 and member_id=?", mid)
+		//order by 优先有效期,次优先小amount
+		db1 := db.Order("expiredate, amount").Offset(offset).Limit(LIMITATION).Find(&as, "current_date >= startdate and ((current_date<=expiredate) or (expiredate is null)) and amount>0 and member_id=?", mid)
 		if db1.RecordNotFound() {
 			break
 		}
@@ -153,7 +154,7 @@ func getConsumeAccount(db *gorm.DB, mid string, amount decimal.Decimal, orderID 
 		var i int
 		var a Account
 		for i, a = range as {
-			//fmt.Println(remindAmount, a.Amount)
+			fmt.Println("consume:", remindAmount, a.Amount)
 			as[i].UpdTime = now
 			if remindAmount.LessThanOrEqual(a.Amount) {
 				as = as[:i+1]
@@ -234,14 +235,14 @@ func getAccountPoints(db *gorm.DB, ts []Transaction) []Account {
 	}
 	//mid := ts[0].SourceID
 	now := time.Now()
-	tomorrow := now.AddDate(0, 0, 1)
+	tday := now.AddDate(0, 0, AvailableDays)
 	for i, t := range ts {
 		arr[i].ID = uuid.NewV4().String()
 		arr[i].MemberID = t.TargetID
 		arr[i].Amount = t.Amount
 		//arr[i].ExpireDate = &tomorrow
 		//arr[i].ExpireDate leave null
-		arr[i].StartDate = tomorrow
+		arr[i].StartDate = tday
 		arr[i].GetDate = now
 		arr[i].GetAmount = t.Amount
 		arr[i].UpdTime = now

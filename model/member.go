@@ -108,7 +108,7 @@ func BindMemberReference(db *gorm.DB, mid string, ref string) error {
 //ValidatePhone 校验手机号格式
 func ValidatePhone(mobileNum string) bool {
 	reg := regexp.MustCompile(regular)
-	return reg.MatchString(mobileNum)
+	return true || reg.MatchString(mobileNum) //暂不验证有效性
 }
 
 //NewMember 空Member
@@ -118,11 +118,11 @@ func NewMember() *Member {
 
 //FindByPhoneOrCardno 按手机号查找, 找不到时,按卡号查找
 // error code:
-//	ResInvalid  phone,cardno 不能都为空
-//	ResPhoneInvalid phone 无效
-//	ResNotFound  找不到记录
-//	ResFound  成功找到
-//	ResFail		异常
+//  ResInvalid  phone,cardno 不能都为空
+//  ResPhoneInvalid phone 无效
+//  ResNotFound  找不到记录
+//  ResFound  成功找到
+//  ResFail		异常
 func (m *Member) FindByPhoneOrCardno(db *gorm.DB, phone string, cardno string) (string, error) {
 	if len(phone) == 0 && len(cardno) == 0 {
 		return ResInvalid, errors.New("请输入手机号或卡号")
@@ -225,7 +225,7 @@ func AddNewMember(db *gorm.DB, name, phone, cardno, refname, refphone, refcardno
 	if len(phone) == 0 && len(cardno) == 0 {
 		return nil, nil, ResInvalid, "请提供会员数据"
 	}
-	ref := NewMember()
+	member := NewMember()
 	if len(refID) == 0 {
 		if len(refphone) != 0 || len(refcardno) != 0 || len(refname) != 0 {
 			members, _, _ := SearchMembersByInfo(db, refphone, refcardno, refname)
@@ -241,11 +241,11 @@ func AddNewMember(db *gorm.DB, name, phone, cardno, refname, refphone, refcardno
 			refID = members[0].ID
 		}
 	}
-	if err := ref.createMember(db, phone, cardno, refID, level, name); err != nil {
+	if err := member.createMember(db, phone, cardno, refID, level, name); err != nil {
 		log.Println(err, phone, cardno)
 		return nil, nil, ResFailCreateMember, "用户创建失败," + phone + err.Error()
 	}
-	return ref, nil, ResOK, ""
+	return member, nil, ResOK, ""
 }
 
 //createMember 简单创建用户
@@ -288,14 +288,14 @@ func (m *Member) fillNewMember(phone string, cardno string, reference string, le
 }
 
 //SearchMembersByInfo 搜索用户,根据
-//	phone,cardno or name
-//	返回 member list, msg code, msg
-//		code:
-//			ResInvalid:	参数不足
-//			ResFail		:	异常
-//			ResMore		:	结果超过1个
-//			ResNotFound:未找到
-//			ResFound	:	成功找到1个
+//  phone,cardno or name
+//  返回 member list, msg code, msg
+//  code:
+//    ResInvalid:	参数不足
+//    ResFail		:	异常
+//    ResMore		:	结果超过1个
+//    ResNotFound:未找到
+//    ResFound	:	成功找到1个
 func SearchMembersByInfo(db *gorm.DB, phone string, cardno string, name string) ([]Member, string, string) {
 	var m *Member
 	var err error
@@ -327,10 +327,10 @@ func SearchMembersByInfo(db *gorm.DB, phone string, cardno string, name string) 
 }
 
 //SearchMembers 搜索member根据
-//	id, phone, cardno or name
-//	id 优先
-//	返回 member list, msg code, msg
-//		code 定义,详见 SearchMembersByInfo
+//  id, phone, cardno or name
+//  id 优先
+//  返回 member list, msg code, msg
+//  code 定义,详见 SearchMembersByInfo
 func SearchMembers(db *gorm.DB, id string, phone string, cardno string, name string) ([]Member, string, string) {
 	if len(id) == 0 {
 		// err = m.FindByID(app.App.DB, id)
@@ -351,7 +351,7 @@ func SearchMembers(db *gorm.DB, id string, phone string, cardno string, name str
 }
 
 //UpdateMember 更新member
-//	cardno 忽略
+//  cardno 忽略
 func UpdateMember(db *gorm.DB, id, phone, cardno, name string) error {
 	//	db.Table("users").Where("id IN (?)", []int{10, 11}).
 	//Updates(map[string]interface{}{"name": "hello", "age": 18})
