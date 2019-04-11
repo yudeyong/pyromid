@@ -120,3 +120,25 @@ func (t *Transaction) saveNew(db *gorm.DB) error {
 	fmt.Println("done:", t)
 	return nil
 }
+
+//检查订单号+memberID是否重复,
+// memberID, orderID
+//	return: code,error
+//  code: 0 无重复
+//		: 1 有重复
+//		: 2 异常
+//		:	-1 订单号为空
+func vaildOrderID(db *gorm.DB, mID string, orderID string) (int, error) {
+	if len(orderID) == 0 {
+		return -1, nil
+	}
+	var t Transaction
+	db1 := db.Table("transactions").Select("source_id").Where("source_id=? AND order_id=?", mID, orderID).First(&t)
+	if db1.RecordNotFound() {
+		return 0, nil
+	}
+	if db1.Error != nil {
+		return 2, db1.Error
+	}
+	return 1, nil
+}

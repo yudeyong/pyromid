@@ -66,7 +66,7 @@ func (c *Controller) Bind(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Fprintf(w, errMsg.messageString(model.ResOK, "Done"))
+	fmt.Fprintf(w, errMsg.messageString(model.ResOK, ok))
 }
 
 type historyResp struct {
@@ -250,6 +250,44 @@ type consumeResp struct {
 	GainPoints     string `json:"gainpoints"`
 }
 
+//Cashout 提现
+//  id      : memberid
+//  amount  : 提现金额 单位分, 例:120 = 1块2毛
+//  orderno : 订单号
+//  return  :
+//    code = "200" 成功
+//    code = "412" 余额不足
+//    code = "500" 内部错误
+func (c *Controller) Cashout(w http.ResponseWriter, r *http.Request) {
+	r.ParseForm() //解析参数，默认是不会解析的
+	id := getPara(r, "id")
+	if len(id) == 0 {
+		fmt.Fprintf(w, jsonString(&msgResp{model.ResInvalid, "参数不足"}))
+		return
+	}
+	m := model.NewMember()
+	errMsg := &msgResp{}
+	if err := m.FindByID(app.App.DB, id); err != nil {
+		fmt.Fprintf(w, errMsg.messageString(model.ResFail, err.Error()))
+		return
+	}
+
+	amount := getPara(r, "amount")
+	order := getPara(r, "orderno")
+	//fmt.Println("consume:", id, amount, usePoint)
+	pointUsed, code, msg := model.Cashout(app.App.DB, m, amount, order)
+	if code != model.ResOK {
+		fmt.Fprintf(w, errMsg.messageString(code, msg))
+	} else {
+		resp := consumeResp{}
+		resp.RespCode = model.ResOK
+		resp.RespMsg = ok
+		resp.MemberID = m.ID
+		resp.PointUsed = pointUsed
+		fmt.Fprintf(w, jsonString(resp))
+	}
+}
+
 //Consume 消耗积分
 //  id      : memberid
 //  amount  : 消费金额 单位分, 例:120 = 1块2毛
@@ -282,7 +320,7 @@ func (c *Controller) Consume(w http.ResponseWriter, r *http.Request) {
 	} else {
 		resp := consumeResp{}
 		resp.RespCode = model.ResOK
-		resp.RespMsg = "ok"
+		resp.RespMsg = ok
 		resp.MemberID = m.ID
 		resp.GainPoints = result.GainPoints
 		resp.PayAmount = result.PayAmount
@@ -516,7 +554,7 @@ func getMsgRespByCode(code string) *msgResp {
 	case model.ResFail: //do nothing
 		//msg = msg
 	case model.ResFound:
-		msg = "OK"
+		msg = ok
 	case model.ResPhoneInvalid:
 		msg = "无效手机号"
 	default:

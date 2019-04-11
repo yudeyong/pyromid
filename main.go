@@ -36,7 +36,7 @@ const ()
 
 func initApp() error {
 	appInstance := app.Init()
-	goboot.Log.Info("starting...")
+	goboot.Log.Info("starting...port:", ListenPort)
 	//fmt.Printf("found: %s\n", App)
 	ratios, err := conf.InitLevels(appInstance.DB)
 	if err != nil {
@@ -77,6 +77,7 @@ func main() {
 
 	c := &controller.Controller{}
 	r := mux.NewRouter()
+	r.HandleFunc("/cashout", c.Cashout)
 	r.HandleFunc("/consume", c.Consume)
 	r.HandleFunc("/adduser", c.AddUser)
 	r.HandleFunc("/updateuser", c.UpdateUser)

@@ -71,6 +71,47 @@ func GetAmountByMember(db *gorm.DB, mid string, valid bool) (decimal.Decimal, er
 	return a.Amount, nil
 }
 
+//Cashout 消费金额
+// 	m member
+//  amountStr	金额字符串形式, 分为单位,例, 120 1块2毛
+//  order:订单id
+//	return point, code, message
+func Cashout(db *gorm.DB, m *Member, amountStr string, orderID string) (string, string, string) {
+	amount, err := decimal.NewFromString(amountStr)
+	if err != nil {
+		return "", ResInvalid, err.Error()
+	}
+	var validcode int
+	validcode, err = vaildOrderID(db, m.ID, orderID)
+	if validcode > 0 {
+		var code, msg string
+		if validcode == 1 {
+			code = ResDup
+			msg = "order No. exist"
+		} else {
+			code = ResFail
+			msg = err.Error()
+		}
+		return "", code, msg
+	}
+	var point decimal.Decimal
+	var t *Transaction
+	var consumedPoints []Account
+	amount, point, t, consumedPoints = getConsumeAccount(db, m.ID, amount, orderID)
+	if t == nil {
+		return "", ResWrongSQL, "积分消耗错误"
+	}
+	if amount.IsPositive() {
+		return "", ResInvalid, "余额不足"
+	}
+	ts := make([]Transaction, 0) //兼容saveConsume, 空数据集
+	as := make([]Account, 0)     //兼容saveConsume, 空数据集
+	if false == saveConsume(db, ts, as, t, consumedPoints) {
+		return "", ResWrongSQL, "保存错误"
+	}
+	return point.String(), ResOK, "OK"
+}
+
 //Consume 消费金额
 // 	m member
 //  amountStr	金额字符串形式, 分为单位,例, 120 1块2毛
@@ -81,7 +122,14 @@ func Consume(db *gorm.DB, m *Member, amountStr string, usePoint string, orderID 
 	if err != nil {
 		return nil, err
 	}
-	//amount = amount.Mul(decimal.New(1, -2)) //分为单位,转换成元
+	var validcode int
+	validcode, err = vaildOrderID(db, m.ID, orderID)
+	if validcode > 0 {
+		if err == nil { //assert(result=1)
+			err = errors.New("order No. exist")
+		}
+		return nil, err
+	}
 	var isuse bool
 	if len(usePoint) > 0 {
 		//if err, isuse=false
@@ -134,7 +182,7 @@ func totalAmount(as []Account) (total decimal.Decimal) {
 //	返回值依次: 剩余需支付消费金额,抵用金额,交易记录对象,储值更新对象列表
 //	t=nil until all exceptions unhappened
 //	check t == nil
-func getConsumeAccount(db *gorm.DB, mid string, amount decimal.Decimal, orderID string) (remindAmount decimal.Decimal, point decimal.Decimal, t *Transaction, result []Account) {
+func getConsumeAccount(db *gorm.DB, mID string, amount decimal.Decimal, orderID string) (remindAmount decimal.Decimal, point decimal.Decimal, t *Transaction, result []Account) {
 	LIMITATION := 4 //常量
 	offset := 0
 	now := time.Now()
@@ -143,7 +191,7 @@ func getConsumeAccount(db *gorm.DB, mid string, amount decimal.Decimal, orderID 
 	remindAmount = amount
 	for remindAmount.GreaterThan(zero) {
 		//order by 优先有效期,次优先小amount
-		db1 := db.Order("expiredate, amount").Offset(offset).Limit(LIMITATION).Find(&as, "current_date >= startdate and ((current_date<=expiredate) or (expiredate is null)) and amount>0 and member_id=?", mid)
+		db1 := db.Order("expiredate, amount").Offset(offset).Limit(LIMITATION).Find(&as, "current_date >= startdate and ((current_date<=expiredate) or (expiredate is null)) and amount>0 and member_id=?", mID)
 		if db1.RecordNotFound() {
 			break
 		}
@@ -154,7 +202,7 @@ func getConsumeAccount(db *gorm.DB, mid string, amount decimal.Decimal, orderID 
 		var i int
 		var a Account
 		for i, a = range as {
-			fmt.Println("consume:", remindAmount, a.Amount)
+			// fmt.Println("consume:", remindAmount, a.Amount)
 			as[i].UpdTime = now
 			if remindAmount.LessThanOrEqual(a.Amount) {
 				as = as[:i+1]
@@ -173,7 +221,7 @@ func getConsumeAccount(db *gorm.DB, mid string, amount decimal.Decimal, orderID 
 	}
 	point = amount.Sub(remindAmount)
 	t = new(Transaction)
-	t.fillTransaction(orderID, mid, mid, point.Neg())
+	t.fillTransaction(orderID, mID, mID, point.Neg())
 	//fmt.Println(len(result), remindAmount, point, amount, result[len(result)-1].Amount, t)
 	return remindAmount, point, t, result
 }
@@ -181,7 +229,7 @@ func getConsumeAccount(db *gorm.DB, mid string, amount decimal.Decimal, orderID 
 func saveConsume(db *gorm.DB, transactions []Transaction, accounts []Account, t *Transaction, consumedPoints []Account) bool {
 	tx := db.Begin() //开启事务
 
-	fmt.Println("account:", len(accounts))
+	// fmt.Println("account:", len(accounts))
 	for _, a := range accounts {
 		if err := a.saveNew(tx); err != nil {
 			tx.Rollback()
@@ -189,7 +237,7 @@ func saveConsume(db *gorm.DB, transactions []Transaction, accounts []Account, t 
 			return false
 		}
 	}
-	fmt.Println("points:", len(consumedPoints))
+	// fmt.Println("points:", len(consumedPoints))
 	for _, a := range consumedPoints {
 		db1 := tx.Save(a)
 		if db1.Error != nil {
@@ -198,7 +246,7 @@ func saveConsume(db *gorm.DB, transactions []Transaction, accounts []Account, t 
 			return false
 		}
 	}
-	fmt.Println("trans:", len(transactions))
+	// fmt.Println("trans:", len(transactions))
 	for _, a := range transactions {
 		if err := a.saveNew(tx); err != nil {
 			tx.Rollback()
