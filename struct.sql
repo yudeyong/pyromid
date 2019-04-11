@@ -232,7 +232,7 @@ CREATE TABLE system_settings (
 
 CREATE TABLE transactions (
     id uuid NOT NULL,
-    order_id uuid,
+    order_id text,
     source_id uuid NOT NULL,
     target_id uuid NOT NULL,
     amount numeric(11,2) NOT NULL,
