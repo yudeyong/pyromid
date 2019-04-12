@@ -256,6 +256,8 @@ type consumeResp struct {
 //  orderno : 订单号
 //  return  :
 //    code = "200" 成功
+//    code = "201" 订单号重复, 订单号空时不做检查. 订单号与用户id联合检查, 相同用户id下,
+//           订单号重复才失败;用户不同, 订单号相同,不算重复
 //    code = "412" 余额不足
 //    code = "500" 内部错误
 func (c *Controller) Cashout(w http.ResponseWriter, r *http.Request) {
@@ -295,6 +297,8 @@ func (c *Controller) Cashout(w http.ResponseWriter, r *http.Request) {
 //  orderno : 订单号
 //  return  :
 //    code = "200" 成功
+//    code = "201" 订单号重复, 订单号空时不做检查. 订单号与用户id联合检查, 相同用户id下,
+//           订单号重复才失败;用户不同, 订单号相同,不算重复
 //    code = "500" 内部错误
 func (c *Controller) Consume(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm() //解析参数，默认是不会解析的
